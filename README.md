@@ -23,16 +23,12 @@ pip install -e .
 ### Via pip (recommended)
 
 ```bash
-pip install optiprop
+pip install --index-url https://test.pypi.org/simple/ optiprop
 ```
 
 ### GPU support
 
-If you need GPU acceleration, install the CUDA build of PyTorch:
-
-```bash
-pip install optiprop[gpu]
-```
+If you need GPU acceleration, install the CUDA build of PyTorch
 
 ## Quick Start
 
