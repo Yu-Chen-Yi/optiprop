@@ -325,7 +325,7 @@ def plot_field_intensity(
         plt.style.use('dark_background')
     else:
         plt.style.use('default')
-    FONT_FAMILY = 'Times New Roman'
+    FONT_FAMILY = 'serif'
     rcParams['font.weight'] = 'bold'
     rcParams['font.size'] = fontsize
     rcParams['font.family'] = FONT_FAMILY
@@ -406,7 +406,7 @@ def plot_xz_field_intensity(
         plt.style.use('dark_background')
     else:
         plt.style.use('default')
-    FONT_FAMILY = 'Times New Roman'
+    FONT_FAMILY = 'serif'
     rcParams['font.weight'] = 'bold'
     rcParams['font.size'] = fontsize
     rcParams['font.family'] = FONT_FAMILY

@@ -187,6 +187,13 @@ See the `examples/` directory for more examples:
 - `beam_propagation.py`: beam propagation analysis
 - `gpu_acceleration.py`: GPU acceleration
 
+### Google Colab Examples
+
+- Metalens_Example1_ASM: [Open in Colab](https://colab.research.google.com/drive/1Ma4orvFWycHQf_wHgouamfz4lzwbHBni?usp=sharing)
+- Metalens_Example1_FS: [Open in Colab](https://colab.research.google.com/drive/1ftKEIuFW7REQUulPLxjgtFcksQSKo9g0?usp=sharing)
+- Metalens_Example1_RS: [Open in Colab](https://colab.research.google.com/drive/1uf8jjfxTqPnOvoxkKKCNfnZq9aXiBZwb?usp=sharing)
+- Dot_projector_Example1.ipynb: [Open in Colab](https://colab.research.google.com/drive/12UWHKb53WILAiJ-OntZEBm3BoDTecmv7?usp=sharing)
+
 ## Dependencies
 
 - Python >= 3.7
@@ -224,7 +231,7 @@ This project is licensed under the MIT License. See [LICENSE](LICENSE) for detai
 If you use this library in your research, please cite:
 
 ```bibtex
-@software{field_propagation,
+@software{optiprop,
   title={Field Propagation Library},
   author={Yu-Chen-Yi},
   year={2025},
