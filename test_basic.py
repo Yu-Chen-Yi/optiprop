@@ -7,7 +7,7 @@ Used to verify package installation and basic functionality
 def test_import():
     """Test import functionality"""
     try:
-        import field_propagation as fp
+        import optiprop
         print("[OK] Successfully imported field_propagation")
         return True
     except ImportError as e:
@@ -17,11 +17,11 @@ def test_import():
 def test_basic_functionality():
     """Test basic functionality"""
     try:
-        import field_propagation as fp
+        import optiprop
         import torch
         
         # Test creating NearField
-        field = fp.NearField(
+        field = optiprop.NearField(
             pixel_size=1e-6,
             field_Lx=100e-6,
             field_Ly=100e-6,
@@ -30,7 +30,7 @@ def test_basic_functionality():
         print("[OK] Successfully created NearField object")
         
         # Test creating lens
-        lens = fp.EqualPathPhase(field)
+        lens = optiprop.EqualPathPhase(field)
         U0 = lens.calculate_phase(
             focal_length=1000e-6,
             design_lambda=0.94e-6,
@@ -39,7 +39,7 @@ def test_basic_functionality():
         print("[OK] Successfully created lens and calculated phase")
         
         # Test propagation
-        prop = fp.FresnelPropagation(
+        prop = optiprop.FresnelPropagation(
             propagation_wavelength=0.94e-6,
             propagation_distance=1000e-6,
             device='cpu'
@@ -57,10 +57,10 @@ def test_basic_functionality():
 def test_info():
     """Test package information"""
     try:
-        import field_propagation as fp
-        print(f"[OK] Package version: {fp.__version__}")
-        print(f"[OK] Package author: {fp.__author__}")
-        fp.info()
+        import optiprop
+        print(f"[OK] Package version: {optiprop.__version__}")
+        print(f"[OK] Package author: {optiprop.__author__}")
+        optiprop.info()
         return True
     except Exception as e:
         print(f"[FAIL] Package info test failed: {e}")

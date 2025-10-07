@@ -6,7 +6,6 @@ Field Propagation Library Setup Script
 from setuptools import setup, find_packages
 import os
 
-# 读取README文件
 def read_readme():
     readme_path = os.path.join(os.path.dirname(__file__), 'README.md')
     if os.path.exists(readme_path):
@@ -14,7 +13,6 @@ def read_readme():
             return f.read()
     return "Field Propagation Library - A Python library for optical field propagation simulation"
 
-# 读取requirements文件
 def read_requirements():
     requirements_path = os.path.join(os.path.dirname(__file__), 'requirements.txt')
     if os.path.exists(requirements_path):
