@@ -139,7 +139,7 @@ def make_colorbar_with_padding(ax):
     Create colorbar axis that fits the size of a plot - detailed here: http://chris35wills.github.io/matplotlib_axis/
     """
     divider = make_axes_locatable(ax)
-    cax = divider.append_axes("right", size="5%", pad=0.1)
+    cax = divider.append_axes("right", size="5%", pad=0.2)
     return(cax) 
 
 def plot_field_amplitude_phase(
@@ -152,7 +152,9 @@ def plot_field_amplitude_phase(
     ylim: list = None, 
     selected_field: str = 'all', 
     dark_style: bool = False,
-    show: bool = True
+    title: str = None,
+    show: bool = True,
+    save_path: str = None
     ):
     """
     Plot the field, amplitude, and phase.
@@ -185,7 +187,11 @@ def plot_field_amplitude_phase(
     rcParams['font.size'] = fontsize
     rcParams['font.family'] = FONT_FAMILY
     if selected_field == 'all':
-        fig = plt.figure("Complex field, Amplitude, and Phase", figsize=(24, 8))
+        fig = plt.figure("Complex field, Amplitude, and Phase", figsize=(21, 6))
+        if title is not None:
+            fig.suptitle(title, fontsize=fontsize, fontweight='bold', fontname=FONT_FAMILY)
+        else:
+            fig.suptitle("Complex field, Amplitude, and Phase", fontsize=fontsize, fontweight='bold', fontname=FONT_FAMILY)
         # Subplot for Field
         ax1 = fig.add_subplot(131)
         plt.imshow(field, extent=[x.min(), x.max(), y.min(), y.max()], cmap=cmap, origin='lower', aspect='equal')
@@ -197,12 +203,12 @@ def plot_field_amplitude_phase(
         cax1 = make_colorbar_with_padding(ax1)
         cb1 = plt.colorbar(cax=cax1)
         
-        fig.subplots_adjust(right=0.9)
+        fig.subplots_adjust(right=0.85)
         # Subplot for Amplitude
         ax2 = fig.add_subplot(132)
         plt.imshow(amplitude, extent=[x.min(), x.max(), y.min(), y.max()], cmap=cmap, origin='lower', aspect='equal')
         plt.xlabel('x (µm)', fontsize=fontsize, fontweight='bold', fontname=FONT_FAMILY)
-        plt.ylabel('y (µm)', fontsize=fontsize, fontweight='bold', fontname=FONT_FAMILY)
+        # plt.ylabel('y (µm)', fontsize=fontsize, fontweight='bold', fontname=FONT_FAMILY)
         plt.title("Amplitude", fontsize=fontsize, fontweight='bold', fontname=FONT_FAMILY)
         plt.xlim(xlim)
         plt.ylim(ylim)
@@ -214,7 +220,7 @@ def plot_field_amplitude_phase(
         ax3 = fig.add_subplot(133)
         plt.imshow(phase, extent=[x.min(), x.max(), y.min(), y.max()], cmap=cmap, origin='lower', aspect='equal')
         plt.xlabel('x (µm)', fontsize=fontsize, fontweight='bold', fontname=FONT_FAMILY)
-        plt.ylabel('y (µm)', fontsize=fontsize, fontweight='bold', fontname=FONT_FAMILY)
+        # plt.ylabel('y (µm)', fontsize=fontsize, fontweight='bold', fontname=FONT_FAMILY)
         plt.title("Phase", fontsize=fontsize, fontweight='bold', fontname=FONT_FAMILY)
         plt.xlim(xlim)
         plt.ylim(ylim)
@@ -223,7 +229,11 @@ def plot_field_amplitude_phase(
         cb3 = plt.colorbar(cax=cax3)
 
     elif selected_field.lower() == 'field':
-        fig = plt.figure("Complex field", figsize=(8, 8))
+        fig = plt.figure("Complex field", figsize=(7, 6))
+        if title is not None:
+            fig.suptitle(title, fontsize=fontsize, fontweight='bold', fontname=FONT_FAMILY)
+        else:
+            fig.suptitle("Complex field", fontsize=fontsize, fontweight='bold', fontname=FONT_FAMILY)
         # Subplot for Field
         ax1 = fig.add_subplot(111)
         plt.imshow(field, extent=[x.min(), x.max(), y.min(), y.max()], cmap=cmap, origin='lower', aspect='equal')
@@ -236,7 +246,11 @@ def plot_field_amplitude_phase(
         cb1 = plt.colorbar(cax=cax1)
 
     elif selected_field.lower() == 'amplitude':
-        fig = plt.figure("Amplitude", figsize=(8, 8))
+        fig = plt.figure("Amplitude", figsize=(7, 6))
+        if title is not None:
+            fig.suptitle(title, fontsize=fontsize, fontweight='bold', fontname=FONT_FAMILY)
+        else:
+            fig.suptitle("Amplitude", fontsize=fontsize, fontweight='bold', fontname=FONT_FAMILY)
         # Subplot for Amplitude
         ax2 = fig.add_subplot(111)
         plt.imshow(amplitude, extent=[x.min(), x.max(), y.min(), y.max()], cmap=cmap, origin='lower', aspect='equal')
@@ -249,7 +263,11 @@ def plot_field_amplitude_phase(
         cb2 = plt.colorbar(cax=cax2)
 
     elif selected_field.lower() == 'phase':
-        fig = plt.figure("Phase", figsize=(8, 8))
+        fig = plt.figure("Phase", figsize=(7, 6))
+        if title is not None:
+            fig.suptitle(title, fontsize=fontsize, fontweight='bold', fontname=FONT_FAMILY)
+        else:
+            fig.suptitle("Phase", fontsize=fontsize, fontweight='bold', fontname=FONT_FAMILY)
         # Subplot for Phase
         ax3 = fig.add_subplot(111)
         plt.imshow(
@@ -268,8 +286,12 @@ def plot_field_amplitude_phase(
         cax3 = make_colorbar_with_padding(ax3)
         cb3 = plt.colorbar(cax=cax3)
     plt.tight_layout()
+    if save_path is not None:
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
     if show:
         plt.show()
+    else:
+        plt.close()
 
 def plot_field_intensity(
     U0: torch.Tensor,
@@ -330,7 +352,7 @@ def plot_field_intensity(
     rcParams['font.size'] = fontsize
     rcParams['font.family'] = FONT_FAMILY
     
-    fig = plt.figure("Complex field, Amplitude, and Phase", figsize=(8, 8))
+    fig = plt.figure("Complex field, Amplitude, and Phase", figsize=(7, 6))
 
     # Subplot for Field
     ax1 = fig.add_subplot(111)
@@ -411,7 +433,7 @@ def plot_xz_field_intensity(
     rcParams['font.size'] = fontsize
     rcParams['font.family'] = FONT_FAMILY
     
-    fig = plt.figure("Complex field, Amplitude, and Phase", figsize=(24, 8))
+    fig = plt.figure("Complex field, Amplitude, and Phase", figsize=(21, 6))
 
     # Subplot for Field
     ax1 = fig.add_subplot(111)

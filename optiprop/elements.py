@@ -92,6 +92,7 @@ class NearField:
         ylim : list = None, 
         selected_field : str = 'all',
         dark_style : bool = False,
+        title : str = None,
         show : bool = True
         ):
         """
@@ -116,6 +117,7 @@ class NearField:
             ylim=ylim, 
             selected_field=selected_field,
             dark_style=dark_style,
+            title=title,
             show=show
         )
 
@@ -228,7 +230,9 @@ class Binary2Phase(PhaseElement):
         lens_diameter: float = 1600e-6, 
         lens_center: list = [0, 0],
         aperture_type: str = 'circle',
-        aperture_size: list = [1600e-6, 1600e-6]
+        aperture_size: list = [1600e-6, 1600e-6],
+        amplitude : float = 1,
+        phase_offset : float = 0,
     ):
         """
         Calculate binary2 phase distribution
@@ -248,8 +252,8 @@ class Binary2Phase(PhaseElement):
         self.lens_center = lens_center
         self.aperture_type = aperture_type
         self.aperture_size = aperture_size
-        reference_X = self.X + lens_center[0]
-        reference_Y = self.Y + lens_center[1]
+        reference_X = self.X - lens_center[0]
+        reference_Y = self.Y - lens_center[1]
         
         # Create aperture
         aperture = self._create_aperture(self.aperture_type, self.aperture_size, self.lens_center, reference_X, reference_Y)
@@ -259,8 +263,8 @@ class Binary2Phase(PhaseElement):
         ai_power = torch.arange(1, len(self.binary2)+1, dtype=self.dtype, device=self.device)
         r2 = (reference_X*1e3)**2 + (reference_Y*1e3)**2
         phase = torch.sum(ai * r2.unsqueeze(-1) ** ai_power, dim=-1)
-        
-        self.U0 = torch.exp(1j * phase) * aperture
+        phase = phase + phase_offset
+        self.U0 = amplitude * torch.exp(1j * phase) * aperture
         return self.U0
         
     def rich_print(self):
@@ -291,7 +295,9 @@ class EqualPathPhase(PhaseElement):
         lens_diameter: float = 1600e-6, 
         lens_center: list = [0, 0],
         aperture_type: str = 'circle',
-        aperture_size: list = [1600e-6, 1600e-6]
+        aperture_size: list = [1600e-6, 1600e-6],
+        amplitude : float = 1,
+        phase_offset : float = 0,
     ):
         """
         Calculate equal path phase distribution
@@ -314,8 +320,8 @@ class EqualPathPhase(PhaseElement):
         self.aperture_type = aperture_type
         self.aperture_size = aperture_size
         
-        reference_X = self.X + lens_center[0]
-        reference_Y = self.Y + lens_center[1]
+        reference_X = self.X - lens_center[0]
+        reference_Y = self.Y - lens_center[1]
         
         # Create aperture
         aperture = self._create_aperture(aperture_type, aperture_size, lens_center, reference_X, reference_Y)
@@ -323,8 +329,8 @@ class EqualPathPhase(PhaseElement):
         # Calculate phase
         phase = -2 * torch.pi / design_lambda * \
             (torch.sqrt(reference_X**2 + reference_Y**2 + focal_length**2) - focal_length)
-        
-        self.U0 = torch.exp(1j * phase) * aperture
+        phase = phase + phase_offset
+        self.U0 = amplitude * torch.exp(1j * phase) * aperture
         return self.U0
     
     def rich_print(self):
@@ -357,7 +363,9 @@ class CubicPhase(PhaseElement):
         lens_diameter: float = 1600e-6, 
         lens_center: list = [0, 0],
         aperture_type: str = 'circle',
-        aperture_size: list = [1600e-6, 1600e-6]
+        aperture_size: list = [1600e-6, 1600e-6],
+        amplitude : float = 1,
+        phase_offset : float = 0,
     ):
         """
         Calculate cubic phase distribution
@@ -392,8 +400,8 @@ class CubicPhase(PhaseElement):
         phase = -2 * torch.pi / design_lambda * \
             ((torch.sqrt(reference_X**2 + reference_Y**2 + focal_length**2) - focal_length) + 
              alpha * (torch.abs((reference_X/(lens_diameter / 2))**3) + torch.abs((reference_Y/(lens_diameter / 2))**3)))
-        
-        self.U0 = torch.exp(1j * phase) * aperture
+        phase = phase + phase_offset
+        self.U0 = amplitude * torch.exp(1j * phase) * aperture
         return self.U0
     
     def rich_print(self):
@@ -425,7 +433,9 @@ class Binary1Phase(PhaseElement):
         lens_diameter: float = 1600e-6, 
         lens_center: list = [0, 0],
         aperture_type: str = 'circle',
-        aperture_size: list = [1600e-6, 1600e-6]
+        aperture_size: list = [1600e-6, 1600e-6],
+        amplitude : float = 1,
+        phase_offset : float = 0,
     ):
         """
         Calculate binary1 phase distribution
@@ -454,25 +464,9 @@ class Binary1Phase(PhaseElement):
         
         # Calculate phase
         phase = A1 * reference_X * 1e3
-        
-        self.U0 = torch.exp(1j * phase) * aperture
+        phase = phase + phase_offset
+        self.U0 = amplitude * torch.exp(1j * phase) * aperture  
         return self.U0
-    
-    def rich_print(self):
-        self.near_field.rich_print()
-        table = Table(title="BINARY1 PHASE", show_header=True, header_style="bold magenta")
-        table.add_column("Attribute", style="cyan", no_wrap=True)
-        table.add_column("Value", style="green")
-        table.add_column("Unit", style="yellow")
-        table.add_column("type", style="yellow")
-        table.add_column("device", style="yellow")
-        table.add_row("A1", str(self.A1), "", str(type(self.A1)), str(self.device))
-        table.add_row("Lens diameter", str(self.lens_diameter), "m", str(type(self.lens_diameter)), str(self.device))
-        table.add_row("Lens center", str(self.lens_center), "m", str(type(self.lens_center)), str(self.device))
-        table.add_row("Aperture type", str(self.aperture_type), "", str(type(self.aperture_type)), str(self.device))
-        table.add_row("Aperture size", str(self.aperture_size), "m", str(type(self.aperture_size)), str(self.device))
-        console = Console()
-        console.print(table)
 
 
 class VSCELPhase(PhaseElement):
@@ -612,7 +606,9 @@ class IncidentField(PhaseElement):
         design_lambda: float = 0.94e-6, 
         lens_center: list = [0, 0],
         aperture_type: str = 'circle',
-        aperture_size: list = [1600e-6, 1600e-6]
+        aperture_size: list = [1600e-6, 1600e-6],
+        amplitude : float = 1,
+        phase_offset : float = 0,
     ):
         """
         Calculate incident field
@@ -636,17 +632,17 @@ class IncidentField(PhaseElement):
         self.aperture_type = aperture_type
         self.aperture_size = aperture_size
         
-        reference_X = self.X + lens_center[0]
-        reference_Y = self.Y + lens_center[1]
+        reference_X = self.X - lens_center[0]
+        reference_Y = self.Y - lens_center[1]
         
         # Create aperture
-        aperture = self._create_aperture(aperture_type, aperture_size, lens_center, self.X, self.Y)
+        aperture = self._create_aperture(aperture_type, aperture_size, lens_center, reference_X, reference_Y)
         
         # Calculate phase
         phase = -2 * torch.pi / design_lambda * n * -torch.sin(torch.tensor(incident_angle[0])/180*torch.pi) * reference_X \
                 -2 * torch.pi / design_lambda * n * -torch.sin(torch.tensor(incident_angle[1])/180*torch.pi) * reference_Y
-        
-        self.U0 = torch.exp(1j * phase) * aperture
+        phase = phase + phase_offset
+        self.U0 = amplitude * torch.exp(1j * phase) * aperture
         return self.U0
     
     def rich_print(self):

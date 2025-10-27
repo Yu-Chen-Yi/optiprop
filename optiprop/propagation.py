@@ -531,7 +531,9 @@ class ASMPropagation:
         ylim=None, 
         selected_field='all',
         dark_style=False,
-        show=True
+        title=None,
+        show=True,
+        save_path=None
         ):
         """
         Show the input field.
@@ -572,7 +574,9 @@ class ASMPropagation:
             ylim=ylim, 
             selected_field=selected_field,
             dark_style=dark_style,
-            show=show
+            title=title,
+            show=show,
+            save_path=save_path
             )
 
     def show_output_U(
@@ -583,7 +587,9 @@ class ASMPropagation:
         ylim=None, 
         selected_field='all',
         dark_style=False,
-        show=True
+        title=None,
+        show=True,
+        save_path=None
         ):
         """
         Show the output field.
@@ -620,7 +626,9 @@ class ASMPropagation:
             ylim=ylim, 
             selected_field=selected_field,
             dark_style=dark_style,
-            show=show
+            title=title,
+            show=show,
+            save_path=save_path
             )
 
     def show_intensity(

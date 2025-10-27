@@ -193,7 +193,7 @@ See the `examples/` directory for more examples:
 - Metalens_Example1_FS: [Open in Colab](https://colab.research.google.com/drive/1ftKEIuFW7REQUulPLxjgtFcksQSKo9g0?usp=sharing)
 - Metalens_Example1_RS: [Open in Colab](https://colab.research.google.com/drive/1uf8jjfxTqPnOvoxkKKCNfnZq9aXiBZwb?usp=sharing)
 - Dot_projector_Example1.ipynb: [Open in Colab](https://colab.research.google.com/drive/12UWHKb53WILAiJ-OntZEBm3BoDTecmv7?usp=sharing)
-
+- Hopfion: [Open in Colab](https://colab.research.google.com/drive/1p0D2fgxaKTfDtEx0W-IKAFmX-5Qs8bVQ?usp=sharing)
 ## Dependencies
 
 - Python >= 3.7
@@ -253,3 +253,7 @@ If you use this library in your research, please cite:
 - Basic optical elements and propagation algorithms
 - GPU acceleration support
 - Complete docs and examples
+
+### v1.0.4 (2025-10-28)
+- Fix plot figure bug
+- Add figure option

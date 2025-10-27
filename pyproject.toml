@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "optiprop"
-version = "1.0.2"
+version = "1.0.4"
 description = "A Python library for optical field propagation simulation"
 readme = "README.md"
 license = {text = "MIT"}
