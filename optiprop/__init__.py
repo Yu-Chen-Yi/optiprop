@@ -11,7 +11,7 @@ Main Features:
 
 Author: Yu-Chen-Yi
 Email: chenyi@g.ncu.edu.tw
-Version: 1.0.0
+Version: 1.0.5
 """
 
 # Import main classes and functions
@@ -21,10 +21,12 @@ from .elements import (
     Binary2Phase,
     EqualPathPhase,
     CubicPhase,
+    AxiCubicPhase,
     Binary1Phase,
     VSCELPhase,
     DiffractiveOpticsElement,
-    IncidentField
+    IncidentField,
+    GaussianBeamSource
 )
 
 from .propagation import (
@@ -45,7 +47,7 @@ from .utils import (
 )
 
 # Version information
-__version__ = "1.0.0"
+__version__ = "1.0.5"
 __author__ = "Yu-Chen-Yi"
 __email__ = "chenyi@g.ncu.edu.tw"
 
@@ -57,10 +59,12 @@ __all__ = [
     'Binary2Phase',
     'EqualPathPhase',
     'CubicPhase',
+    'AxiCubicPhase',
     'Binary1Phase',
     'VSCELPhase',
     'DiffractiveOpticsElement',
     'IncidentField',
+    'GaussianBeamSource',
     
     # Propagation algorithms
     'FresnelPropagation',

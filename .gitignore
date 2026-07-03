@@ -1,0 +1,19 @@
+# Byte-compiled / optimized / cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Large generated data
+*.csv
+data_*.csv

@@ -350,6 +350,78 @@ class EqualPathPhase(PhaseElement):
         console = Console()
         console.print(table)
 
+class AxiCubicPhase(PhaseElement):
+    """
+    CUBIC PHASE
+    """
+    def calculate_phase(
+        self, 
+        focal_length: float = 1000e-6, 
+        axi: float = 0,
+        alpha: float = 0, 
+        design_lambda: float = 0.94e-6, 
+        lens_diameter: float = 1600e-6, 
+        lens_center: list = [0, 0],
+        aperture_type: str = 'circle',
+        aperture_size: list = [1600e-6, 1600e-6],
+        amplitude : float = 1,
+        phase_offset : float = 0,
+    ):
+        """
+        Calculate cubic phase distribution
+        
+        Args:
+            focal_length (float): Focal length (m)
+            alpha (float): Cubic phase parameter (rad)
+            design_lambda (float): Design wavelength (m)
+            lens_diameter (float): Lens diameter (m)
+            lens_center (list): Lens center position [cx, cy] (m)
+            aperture_type (str): Aperture type 'circle' or 'rectangle'
+            aperture_size (list): Aperture size [width, height] (m)
+        
+        Returns:
+            torch.Tensor: Complex field U0
+        """
+        self.focal_length = focal_length
+        self.axi = axi
+        self.alpha = alpha
+        self.design_lambda = design_lambda
+        self.lens_diameter = lens_diameter
+        self.lens_center = lens_center
+        self.aperture_type = aperture_type
+        self.aperture_size = aperture_size
+        
+        reference_X = self.X - lens_center[0]
+        reference_Y = self.Y - lens_center[1]
+        
+        # Create aperture
+        aperture = self._create_aperture(aperture_type, aperture_size, [0, 0], reference_X, reference_Y)
+        
+        r = torch.sqrt((reference_X/(lens_diameter / 2))**2 + (reference_Y/(lens_diameter / 2))**2)
+        # Calculate phase
+        phase = axi * r + alpha * (torch.abs((reference_X/(lens_diameter / 2))**3) + torch.abs((reference_Y/(lens_diameter / 2))**3))
+        phase = phase + phase_offset
+        self.U0 = amplitude * torch.exp(1j * phase) * aperture
+        return self.U0
+
+    def rich_print(self):
+        self.near_field.rich_print()
+        table = Table(title="AXICON + CUBIC PHASE", show_header=True, header_style="bold magenta")
+        table.add_column("Attribute", style="cyan", no_wrap=True)
+        table.add_column("Value", style="green")
+        table.add_column("Unit", style="yellow")
+        table.add_column("type", style="yellow")
+        table.add_column("device", style="yellow")
+        table.add_row("Focal length", str(self.focal_length), "m", str(type(self.focal_length)), str(self.device))
+        table.add_row("Axi", str(self.axi), "rad", str(type(self.axi)), str(self.device))
+        table.add_row("Alpha", str(self.alpha), "rad", str(type(self.alpha)), str(self.device))
+        table.add_row("Design lambda", str(self.design_lambda), "m", str(type(self.design_lambda)), str(self.device))
+        table.add_row("Lens diameter", str(self.lens_diameter), "m", str(type(self.lens_diameter)), str(self.device))
+        table.add_row("Lens center", str(self.lens_center), "m", str(type(self.lens_center)), str(self.device))
+        table.add_row("Aperture type", str(self.aperture_type), "", str(type(self.aperture_type)), str(self.device))
+        table.add_row("Aperture size", str(self.aperture_size), "m", str(type(self.aperture_size)), str(self.device))
+        console = Console()
+        console.print(table)
 
 class CubicPhase(PhaseElement):
     """
@@ -467,6 +539,21 @@ class Binary1Phase(PhaseElement):
         phase = phase + phase_offset
         self.U0 = amplitude * torch.exp(1j * phase) * aperture  
         return self.U0
+    
+    def rich_print(self):
+        self.near_field.rich_print()
+        table = Table(title="BINARY1 PHASE", show_header=True, header_style="bold magenta")
+        table.add_column("Attribute", style="cyan", no_wrap=True)
+        table.add_column("Value", style="green")
+        table.add_column("Unit", style="yellow")
+        table.add_column("type", style="yellow")
+        table.add_column("device", style="yellow")
+        table.add_row("Lens diameter", str(self.lens_diameter), "m", str(type(self.lens_diameter)), str(self.device))
+        table.add_row("Lens center", str(self.lens_center), "m", str(type(self.lens_center)), str(self.device))
+        table.add_row("Aperture type", str(self.aperture_type), "", str(type(self.aperture_type)), str(self.device))
+        table.add_row("Aperture size", str(self.aperture_size), "m", str(type(self.aperture_size)), str(self.device))
+        console = Console()
+        console.print(table)
 
 
 class VSCELPhase(PhaseElement):
@@ -661,3 +748,97 @@ class IncidentField(PhaseElement):
         table.add_row("Aperture size", str(self.aperture_size), "m", str(type(self.aperture_size)), str(self.device))
         console = Console()
         console.print(table)
+
+
+class GaussianBeamSource(PhaseElement):
+    """
+    GAUSSIAN BEAM SOURCE
+
+    Generates a TEM00 Gaussian beam field at the beam waist plane.
+    The complex field is:
+        U(x,y) = amplitude * exp(-(x^2 + y^2) / w0^2) * aperture * exp(j * phase_offset)
+
+    Methods:
+        calculate_phase(design_lambda, beam_center, gaussian_beam_waist_size,
+                        aperture_type, aperture_size, amplitude, phase_offset) -> torch.Tensor:
+            Calculate the Gaussian beam field distribution
+        rich_print() -> None:
+            Print the Gaussian beam source parameters
+        draw(...) -> None:
+            Draw the Gaussian beam field (inherited from PhaseElement)
+    """
+    def calculate_phase(
+        self,
+        design_lambda: float = 0.94e-6,
+        beam_center: list = [0, 0],
+        gaussian_beam_waist_size: float = 100e-6,
+        aperture_type: str = 'circle',
+        aperture_size: list = [1600e-6, 1600e-6],
+        amplitude: float = 1,
+        phase_offset: float = 0,
+    ):
+        """
+        Calculate Gaussian beam field at the waist plane
+
+        Args:
+            design_lambda (float): Wavelength (m)
+            beam_center (list): Beam center position [cx, cy] (m)
+            gaussian_beam_waist_size (float): Gaussian beam waist radius w0 (m).
+                The beam intensity drops to 1/e^2 at distance w0 from center.
+            aperture_type (str): Aperture type 'circle' or 'rectangle'
+            aperture_size (list): Aperture size [width, height] or [diameter] (m)
+            amplitude (float): Peak amplitude of the beam
+            phase_offset (float): Additional constant phase offset (rad)
+
+        Returns:
+            torch.Tensor: Complex field U0
+        """
+        if gaussian_beam_waist_size <= 0:
+            raise ValueError("gaussian_beam_waist_size must be positive.")
+
+        self.design_lambda = design_lambda
+        self.beam_center = beam_center
+        self.gaussian_beam_waist_size = gaussian_beam_waist_size
+        self.aperture_type = aperture_type
+        self.aperture_size = aperture_size
+
+        reference_X = self.X - beam_center[0]
+        reference_Y = self.Y - beam_center[1]
+
+        # Create aperture
+        aperture = self._create_aperture(
+            aperture_type, aperture_size, beam_center, reference_X, reference_Y
+        )
+
+        # Gaussian beam amplitude profile at waist: exp(-(x^2+y^2)/w0^2)
+        w0 = gaussian_beam_waist_size
+        gaussian_amplitude = torch.exp(
+            -(reference_X**2 + reference_Y**2) / (w0**2)
+        )
+
+        # Construct complex field
+        self.U0 = (
+            amplitude
+            * gaussian_amplitude
+            * torch.exp(1j * torch.tensor(phase_offset, dtype=self.dtype, device=self.device))
+            * aperture
+        )
+        return self.U0
+
+    def rich_print(self):
+        self.near_field.rich_print()
+        table = Table(title="GAUSSIAN BEAM SOURCE", show_header=True, header_style="bold magenta")
+        table.add_column("Attribute", style="cyan", no_wrap=True)
+        table.add_column("Value", style="green")
+        table.add_column("Unit", style="yellow")
+        table.add_column("type", style="yellow")
+        table.add_column("device", style="yellow")
+        table.add_row("Design lambda", str(self.design_lambda), "m", str(type(self.design_lambda)), str(self.device))
+        table.add_row("Beam center", str(self.beam_center), "m", str(type(self.beam_center)), str(self.device))
+        table.add_row("Waist size (w0)", str(self.gaussian_beam_waist_size), "m", str(type(self.gaussian_beam_waist_size)), str(self.device))
+        table.add_row("Aperture type", str(self.aperture_type), "", str(type(self.aperture_type)), str(self.device))
+        table.add_row("Aperture size", str(self.aperture_size), "m", str(type(self.aperture_size)), str(self.device))
+        console = Console()
+        console.print(table)
+
+
