@@ -29,6 +29,11 @@ from .elements import (
     GaussianBeamSource
 )
 
+from .metaatom import (
+    MetaAtomLibrary,
+    MetaAtomElement
+)
+
 from .propagation import (
     FresnelPropagation,
     ASMPropagation,
@@ -65,7 +70,11 @@ __all__ = [
     'DiffractiveOpticsElement',
     'IncidentField',
     'GaussianBeamSource',
-    
+
+    # Meta-atom database
+    'MetaAtomLibrary',
+    'MetaAtomElement',
+
     # Propagation algorithms
     'FresnelPropagation',
     'ASMPropagation',
