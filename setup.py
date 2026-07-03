@@ -27,7 +27,7 @@ def read_requirements():
 
 setup(
     name="optiprop",
-    version="1.0.4",
+    version="1.0.5",
     author="Yu-Chen-Yi",
     author_email="chenyi@g.ncu.edu.tw",
     description="A Python library for optical field propagation simulation",
