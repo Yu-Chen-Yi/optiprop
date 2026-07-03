@@ -26,7 +26,8 @@ from .elements import (
     VSCELPhase,
     DiffractiveOpticsElement,
     IncidentField,
-    GaussianBeamSource
+    GaussianBeamSource,
+    ZemaxPOPSource
 )
 
 from .metaatom import (
@@ -70,6 +71,7 @@ __all__ = [
     'DiffractiveOpticsElement',
     'IncidentField',
     'GaussianBeamSource',
+    'ZemaxPOPSource',
 
     # Meta-atom database
     'MetaAtomLibrary',
