@@ -17,3 +17,6 @@ dist/
 # Large generated data
 *.csv
 data_*.csv
+
+# Large source field files (>100MB, exceed GitHub limit)
+source/

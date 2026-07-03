@@ -842,3 +842,197 @@ class GaussianBeamSource(PhaseElement):
         console.print(table)
 
 
+class ZemaxPOPSource(PhaseElement):
+    """
+    ZEMAX POP SOURCE
+
+    Loads a source field from Zemax Physical Optics Propagation (POP) text
+    listings ("Listing of POP Irradiance Data" and "Listing of POP Phase Data
+    in radians") and resamples it onto the NearField grid.
+
+    The complex field is reconstructed as:
+        U(x,y) = sqrt(I(x,y)) * exp(j * phase(x,y))
+    and bilinearly interpolated (real and imaginary parts separately, to
+    avoid phase-wrapping artifacts) onto the simulation grid. Points outside
+    the source data window are set to zero.
+
+    Methods:
+        calculate_phase(intensity_file, phase_file, source_center,
+                        normalize_power, flip_y) -> torch.Tensor:
+            Load, reconstruct and resample the source field
+        rich_print() -> None:
+            Print the source file metadata and grid parameters
+        draw(...) -> None:
+            Draw the source field (inherited from PhaseElement)
+    """
+
+    @staticmethod
+    def _parse_pop_file(file_path: str):
+        """
+        Parse a Zemax POP text listing (UTF-16 encoded).
+
+        Args:
+            file_path (str): Path to the POP irradiance or phase listing
+
+        Returns:
+            tuple: (data, header) where data is a numpy array of shape
+                [Ny, Nx] and header is a dict with keys 'Nx', 'Ny',
+                'dx' (m), 'dy' (m), 'wavelength' (m or None),
+                'index' (float or None).
+        """
+        import re
+        import numpy as np
+
+        with open(file_path, encoding='utf-16') as f:
+            lines = f.readlines()
+
+        header = {'Nx': None, 'Ny': None, 'dx': None, 'dy': None,
+                  'wavelength': None, 'index': None}
+        data_start = None
+        for i, line in enumerate(lines):
+            s = line.strip()
+            if s.startswith('Grid size'):
+                nx, ny = re.findall(r'(\d+)\s*by\s*(\d+)', s)[0]
+                header['Nx'], header['Ny'] = int(nx), int(ny)
+            elif s.startswith('Point spacing'):
+                dx, dy = re.findall(r'([\d.E+-]+)\s*by\s*([\d.E+-]+)', s)[0]
+                header['dx'], header['dy'] = float(dx) * 1e-3, float(dy) * 1e-3  # mm -> m
+            elif s.startswith('Beam wavelength'):
+                m = re.search(r'wavelength is\s*([\d.E+-]+).*index\s*([\d.E+-]+)', s)
+                if m:
+                    header['wavelength'] = float(m.group(1)) * 1e-6  # um -> m
+                    header['index'] = float(m.group(2))
+            elif header['Nx'] is not None and s and data_start is None:
+                parts = s.split()
+                if len(parts) == header['Nx']:
+                    try:
+                        float(parts[0])
+                        data_start = i
+                    except ValueError:
+                        pass
+        if header['Nx'] is None or data_start is None:
+            raise ValueError(f"Could not parse Zemax POP listing: {file_path}")
+
+        rows = []
+        for line in lines[data_start:]:
+            parts = line.split()
+            if len(parts) == header['Nx']:
+                rows.append(np.array(parts, dtype=np.float64))
+        data = np.stack(rows)
+        if data.shape != (header['Ny'], header['Nx']):
+            raise ValueError(
+                f"Data shape {data.shape} does not match grid size "
+                f"({header['Ny']}, {header['Nx']}) in {file_path}"
+            )
+        return data, header
+
+    def calculate_phase(
+        self,
+        intensity_file: str = None,
+        phase_file: str = None,
+        source_center: list = [0, 0],
+        normalize_power: bool = False,
+        flip_y: bool = False,
+    ):
+        """
+        Load a Zemax POP source and resample it onto the NearField grid
+
+        Args:
+            intensity_file (str): Path to the POP irradiance listing (.txt)
+            phase_file (str): Path to the POP phase listing (.txt) in
+                radians. If None, a flat phase is assumed.
+            source_center (list): Position [cx, cy] (m) to place the source
+                center on the simulation grid
+            normalize_power (bool): If True, normalize the field to unit
+                total power on the simulation grid
+            flip_y (bool): If True, flip the source data along Y (use when
+                the listing row order is opposite to the grid convention)
+
+        Returns:
+            torch.Tensor: Complex field U0
+        """
+        import numpy as np
+
+        if intensity_file is None:
+            raise ValueError("intensity_file is required.")
+
+        self.intensity_file = intensity_file
+        self.phase_file = phase_file
+        self.source_center = source_center
+        self.normalize_power = normalize_power
+        self.flip_y = flip_y
+
+        intensity, header = self._parse_pop_file(intensity_file)
+        if phase_file is not None:
+            phase, _ = self._parse_pop_file(phase_file)
+            if phase.shape != intensity.shape:
+                raise ValueError(
+                    f"Phase grid {phase.shape} does not match "
+                    f"irradiance grid {intensity.shape}"
+                )
+        else:
+            phase = np.zeros_like(intensity)
+
+        if flip_y:
+            intensity = intensity[::-1, :].copy()
+            phase = phase[::-1, :].copy()
+
+        self.source_Nx = header['Nx']
+        self.source_Ny = header['Ny']
+        self.source_dx = header['dx']
+        self.source_dy = header['dy']
+        self.source_wavelength = header['wavelength']
+        self.source_index = header['index']
+        self.source_total_power = float(intensity.sum() * header['dx'] * header['dy'])
+
+        # Reconstruct the complex field on the source grid
+        amplitude = np.sqrt(np.clip(intensity, 0, None))
+        U_src = torch.tensor(
+            amplitude * np.exp(1j * phase),
+            dtype=torch.complex64 if self.dtype == torch.float32 else torch.complex128,
+            device=self.device,
+        )
+
+        # Bilinear resampling of real/imag parts onto the NearField grid
+        # (grid_sample expects normalized coordinates in [-1, 1] that map to
+        # the outermost pixel centers with align_corners=True)
+        half_wx = (self.source_Nx - 1) / 2 * self.source_dx
+        half_wy = (self.source_Ny - 1) / 2 * self.source_dy
+        grid_x = (self.X - source_center[0]) / half_wx
+        grid_y = (self.Y - source_center[1]) / half_wy
+        sample_grid = torch.stack([grid_x, grid_y], dim=-1).unsqueeze(0)
+        src_stack = torch.stack([U_src.real, U_src.imag]).unsqueeze(0).to(self.dtype)
+        resampled = F.grid_sample(
+            src_stack, sample_grid.to(self.dtype),
+            mode='bilinear', padding_mode='zeros', align_corners=True,
+        ).squeeze(0)
+        self.U0 = torch.complex(resampled[0], resampled[1])
+
+        if normalize_power:
+            power = (torch.abs(self.U0) ** 2).sum() * self.pixel_size ** 2
+            if power > 0:
+                self.U0 = self.U0 / torch.sqrt(power)
+
+        return self.U0
+
+    def rich_print(self):
+        self.near_field.rich_print()
+        table = Table(title="ZEMAX POP SOURCE", show_header=True, header_style="bold magenta")
+        table.add_column("Attribute", style="cyan", no_wrap=True)
+        table.add_column("Value", style="green")
+        table.add_column("Unit", style="yellow")
+        table.add_column("type", style="yellow")
+        table.add_column("device", style="yellow")
+        table.add_row("Intensity file", str(self.intensity_file), "", str(type(self.intensity_file)), str(self.device))
+        table.add_row("Phase file", str(self.phase_file), "", str(type(self.phase_file)), str(self.device))
+        table.add_row("Source grid", f"{self.source_Nx} x {self.source_Ny}", "points", str(type(self.source_Nx)), str(self.device))
+        table.add_row("Source spacing", f"{self.source_dx:.4e} x {self.source_dy:.4e}", "m", str(type(self.source_dx)), str(self.device))
+        table.add_row("Source wavelength", str(self.source_wavelength), "m", str(type(self.source_wavelength)), str(self.device))
+        table.add_row("Medium index", str(self.source_index), "", str(type(self.source_index)), str(self.device))
+        table.add_row("Total power (file)", f"{self.source_total_power:.4e}", "W", str(type(self.source_total_power)), str(self.device))
+        table.add_row("Source center", str(self.source_center), "m", str(type(self.source_center)), str(self.device))
+        table.add_row("Normalize power", str(self.normalize_power), "", str(type(self.normalize_power)), str(self.device))
+        console = Console()
+        console.print(table)
+
+
