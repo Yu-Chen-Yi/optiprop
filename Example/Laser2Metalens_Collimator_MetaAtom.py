@@ -199,24 +199,44 @@ fig.suptitle('Single-phase collimator (asia_1310): Ex and Ey polarizations')
 fig.savefig(os.path.join(OUTPUT_DIR, 'collimator_sigma_vs_z.png'), dpi=300, bbox_inches='tight')
 plt.close(fig)
 
-# XZ intensity map for the dominant polarization (Ey)
-xz_prop = optiprop.ASMPropagation(
-    propagation_wavelength=DESIGN_LAMBDA,
-    propagation_distance=GLUE_DISTANCE,
-    n=1.0,
-    device=DEVICE,
+# Save the complex fields right after the collimator (U * meta_lens.U0)
+U_after_x = U_x * meta_lens.U0
+U_after_y = U_y * meta_lens.U0
+np.savez(
+    os.path.join(OUTPUT_DIR, 'collimator_output_fields.npz'),
+    U_after_Ex=U_after_x.cpu().numpy(),
+    U_after_Ey=U_after_y.cpu().numpy(),
+    pixel_size=PIXEL_SIZE,
+    design_lambda=DESIGN_LAMBDA,
 )
-xz_prop.set_input_field(u_in=optiprop.pad_to_center(U_y * meta_lens.U0, N_PAD), pixel_size=PIXEL_SIZE)
-xz_prop.propagate_xz(z_range=np.linspace(1e-6, 1000e-6, 201))
-optiprop.plot_xz_field_intensity(
-    xz_prop.output_UZ,
-    torch.tensor(x_pad, device=DEVICE),
-    torch.tensor(np.linspace(1e-6, 1000e-6, 201), device=DEVICE),
-    title='XZ intensity after metalens (Ey, joint design)',
-    show=False,
-)
-plt.savefig(os.path.join(OUTPUT_DIR, 'collimator_xz_Ey.png'), dpi=300, bbox_inches='tight')
-plt.close('all')
+print('Saved fields after collimator to collimator_output_fields.npz '
+      '(keys: U_after_Ex, U_after_Ey, pixel_size, design_lambda)')
+
+# XZ intensity maps for BOTH polarizations in one figure
+z_range = np.linspace(1e-6, 1000e-6, 201)
+fig, axes = plt.subplots(2, 1, figsize=(14, 8), sharex=True)
+for ax, (pol, U_after) in zip(axes, [('Ey', U_after_y), ('Ex', U_after_x)]):
+    xz_prop = optiprop.ASMPropagation(
+        propagation_wavelength=DESIGN_LAMBDA,
+        propagation_distance=GLUE_DISTANCE,
+        n=1.0,
+        device=DEVICE,
+    )
+    xz_prop.set_input_field(u_in=optiprop.pad_to_center(U_after, N_PAD), pixel_size=PIXEL_SIZE)
+    xz_prop.propagate_xz(z_range=z_range)
+    I_xz = (torch.abs(xz_prop.output_UZ) ** 2).cpu().numpy()
+    im = ax.imshow(
+        I_xz.T,
+        extent=[z_range[0]*1e6, z_range[-1]*1e6, x_pad[0]*1e6, x_pad[-1]*1e6],
+        aspect='auto', origin='lower', cmap='turbo',
+    )
+    ax.set_ylabel('x (µm)')
+    ax.set_ylim(-100, 100)
+    ax.set_title(f'XZ intensity after metalens ({pol}, joint design)')
+    fig.colorbar(im, ax=ax, label='Intensity')
+axes[-1].set_xlabel('z (µm)')
+fig.savefig(os.path.join(OUTPUT_DIR, 'collimator_xz_ExEy.png'), dpi=300, bbox_inches='tight')
+plt.close(fig)
 
 # Field snapshot at the lens plane (Ey)
 optiprop.plot_field_intensity(
