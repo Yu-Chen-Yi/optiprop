@@ -8,6 +8,8 @@ include pyproject.toml
 recursive-include optiprop *.py
 
 # Exclude development and build files
+prune Example
+prune Inversed?design
 exclude .gitignore
 exclude *.pyc
 exclude *.pyo

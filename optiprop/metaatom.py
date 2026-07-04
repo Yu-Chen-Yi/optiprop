@@ -1,3 +1,5 @@
+import warnings
+
 import torch
 import numpy as np
 from matplotlib import pyplot as plt
@@ -61,12 +63,14 @@ class MetaAtomLibrary:
 
         Args:
             library_path (str): Path to the .npy database file.
-            wavelength (float): Desired wavelength, same unit as the database
-                axis (nm). Nearest entry is selected; None selects index 0.
-            period (float): Desired lattice period (nm). Nearest entry is
-                selected; None selects index 0.
-            thickness (float): Desired meta-atom thickness (nm). Nearest entry
-                is selected; None selects index 0.
+            wavelength (float): Desired wavelength in DATABASE UNITS
+                (typically nm, NOT meters — unlike the rest of the package).
+                Nearest entry is selected; None selects index 0. A warning is
+                issued when the request lies outside the database axis range.
+            period (float): Desired lattice period in database units (nm).
+                Nearest entry is selected; None selects index 0.
+            thickness (float): Desired meta-atom thickness in database units
+                (nm). Nearest entry is selected; None selects index 0.
             polarization_index (int): Column of the polarization axis to use
                 (0 = Txx co-polarization, valid for isotropic meta-atoms).
             transmission_type (str): 'intensity' if the transmission tensor
@@ -94,16 +98,31 @@ class MetaAtomLibrary:
         period_axis = np.atleast_1d(np.asarray(data_sheet['Period'], dtype=np.float64))
         thickness_axis = np.atleast_1d(np.asarray(data_sheet['Thickness'], dtype=np.float64))
 
-        iw = self._nearest_index(wavelength_axis, wavelength)
-        ip = self._nearest_index(period_axis, period)
-        it = self._nearest_index(thickness_axis, thickness)
+        iw = self._nearest_index(wavelength_axis, wavelength, 'wavelength')
+        ip = self._nearest_index(period_axis, period, 'period')
+        it = self._nearest_index(thickness_axis, thickness, 'thickness')
 
         self.wavelength = float(wavelength_axis[iw])
         self.period = float(period_axis[ip])
         self.thickness = float(thickness_axis[it])
 
-        transmission = np.asarray(data_sheet['transmission_tensor'])[iw, ip, it, :, polarization_index]
-        phase = np.asarray(data_sheet['phase_tensor'])[iw, ip, it, :, polarization_index]
+        transmission_tensor = np.asarray(data_sheet['transmission_tensor'])
+        phase_tensor = np.asarray(data_sheet['phase_tensor'])
+        if transmission_tensor.ndim != 5 or phase_tensor.ndim != 5:
+            raise ValueError(
+                "transmission_tensor and phase_tensor must be 5-D "
+                "[wavelength, period, thickness, R, polarization]; got "
+                f"{transmission_tensor.ndim}-D and {phase_tensor.ndim}-D."
+            )
+        n_polarizations = transmission_tensor.shape[-1]
+        if not 0 <= polarization_index < n_polarizations:
+            raise ValueError(
+                f"polarization_index {polarization_index} is out of range for "
+                f"a polarization axis of size {n_polarizations}."
+            )
+
+        transmission = transmission_tensor[iw, ip, it, :, polarization_index]
+        phase = phase_tensor[iw, ip, it, :, polarization_index]
         parameter = np.asarray(data_sheet['R'], dtype=np.float64)
 
         if transmission_type == 'intensity':
@@ -129,18 +148,28 @@ class MetaAtomLibrary:
         self.worst_lookup_error = self.largest_gap / 2
 
     @staticmethod
-    def _nearest_index(axis: np.ndarray, value) -> int:
+    def _nearest_index(axis: np.ndarray, value, name: str = 'axis') -> int:
         """
         Find the nearest index of `value` in a 1-D axis.
 
         Args:
-            axis (np.ndarray): 1-D sweep axis.
+            axis (np.ndarray): 1-D sweep axis (database units, typically nm).
             value (float): Requested value; None selects index 0.
+            name (str): Axis name used in the out-of-range warning.
 
         Returns:
             int: Nearest index.
         """
-        if value is None or axis.size == 1:
+        if value is None:
+            return 0
+        if value < axis.min() or value > axis.max():
+            warnings.warn(
+                f"Requested {name}={value} is outside the database axis range "
+                f"[{axis.min()}, {axis.max()}] (database units, typically nm); "
+                "the nearest entry is used. Note this argument is NOT in meters.",
+                stacklevel=3,
+            )
+        if axis.size == 1:
             return 0
         return int(np.argmin(np.abs(axis - value)))
 
@@ -175,8 +204,8 @@ class MetaAtomLibrary:
         n_pixels = target.numel()
         n_atoms = self.n_atoms
 
-        # Chunk over pixels to bound the [chunk, NR] cost matrix to ~2e8 elements
-        max_elements = int(2e8)
+        # Chunk over pixels to bound the [chunk, NR] cost matrix to ~5e7 elements
+        max_elements = int(5e7)
         chunk_size = max(1, max_elements // max(n_atoms, 1))
 
         index_flat = torch.empty(n_pixels, dtype=torch.long, device=self.device)
@@ -320,7 +349,9 @@ class MetaAtomElement(PhaseElement):
             alpha (float): Amplitude penalty weight in the lookup cost.
             optimize_global_offset (bool): If True, scan a constant phase
                 offset in [0, 2*pi) and add the offset minimizing the total
-                squared wrapped phase error inside the aperture.
+                squared wrapped phase error inside the aperture. The scan
+                uses a phase-only cost (the 'alpha' amplitude penalty is
+                applied only in the per-pixel lookup, not in this scan).
             offset_steps (int): Number of offset samples in [0, 2*pi).
             keep_ideal_amplitude (bool): If True the ideal amplitude
                 multiplies the realized meta-atom amplitude; if False a flat
@@ -348,6 +379,11 @@ class MetaAtomElement(PhaseElement):
         target_phase = torch.angle(ideal_U0).to(real_dtype)
         ideal_amp = torch.abs(ideal_U0).to(real_dtype)
         aperture = ideal_amp > 0
+        if not bool(torch.any(aperture)):
+            raise ValueError(
+                "The ideal field is zero everywhere (empty aperture); "
+                "there is nothing to replace with meta-atoms."
+            )
 
         # Optional global constant phase offset optimization (phase-only cost)
         global_offset = 0.0
@@ -420,11 +456,18 @@ class MetaAtomElement(PhaseElement):
         offsets = torch.arange(offset_steps, dtype=library.dtype, device=library.device) \
             * (2 * torch.pi / offset_steps)
 
-        # [n_bins, offset_steps] shifted targets, min over NR library phases
-        shifted = _wrap_phase(bin_centers.unsqueeze(1) + offsets.unsqueeze(0))
-        diff = _wrap_phase(phase_db.reshape(-1, 1, 1) - shifted.unsqueeze(0))
-        min_sq_error, _ = (diff ** 2).min(dim=0)  # [n_bins, offset_steps]
-        total_error = (counts.unsqueeze(1) * min_sq_error).sum(dim=0)
+        # [n_bins, chunk] shifted targets, min over NR library phases.
+        # Chunk over offsets to bound the [NR, n_bins, chunk] intermediate
+        # to ~5e7 elements (large libraries would otherwise exhaust memory).
+        max_elements = int(5e7)
+        chunk = max(1, max_elements // max(phase_db.numel() * n_bins, 1))
+        total_error = torch.empty(offset_steps, dtype=library.dtype, device=library.device)
+        for start in range(0, offset_steps, chunk):
+            stop = min(start + chunk, offset_steps)
+            shifted = _wrap_phase(bin_centers.unsqueeze(1) + offsets[start:stop].unsqueeze(0))
+            diff = _wrap_phase(phase_db.reshape(-1, 1, 1) - shifted.unsqueeze(0))
+            min_sq_error, _ = (diff ** 2).min(dim=0)  # [n_bins, chunk]
+            total_error[start:stop] = (counts.unsqueeze(1) * min_sq_error).sum(dim=0)
         best = torch.argmin(total_error)
         return float(offsets[best].item())
 

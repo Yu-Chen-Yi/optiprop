@@ -110,6 +110,28 @@ asm_prop.show_intensity()
 | Diffractive optics element | `DiffractiveOpticsElement` | Periodic structures |
 | VCSEL source | `VSCELPhase` | Gaussian beam source |
 | Incident field | `IncidentField` | Plane wave and tilted incidence |
+| Zemax POP source | `ZemaxPOPSource` | Load POP irradiance/phase text listings |
+| Meta-atom element | `MetaAtomElement` | Realize an ideal phase with a meta-atom database |
+
+## Meta-Atom Database Support
+
+Replace an ideal phase profile with the realizable amplitude/phase of
+fabricated meta-atoms (nearest wrapped-phase lookup):
+
+```python
+library = optiprop.MetaAtomLibrary('asia_1310.npy')   # .npy with a 'data_sheet' dict
+library.rich_print()                                  # phase coverage statistics
+
+meta_lens = optiprop.MetaAtomElement(field)
+meta_lens.calculate_phase(
+    ideal_element=ideal_lens,        # any PhaseElement (or ideal_U0=...)
+    library=library,
+    alpha=0.3,                       # amplitude penalty: avoid lossy resonances
+    optimize_global_offset=True,     # steer away from phase-coverage gaps
+)
+meta_lens.export_parameter_map('R_map.csv')  # structure parameter per pixel
+U_out = incident.U0 * meta_lens.U0           # propagate as usual
+```
 
 ## Supported Propagation Methods
 
@@ -180,12 +202,15 @@ field = optprop.NearField(dtype=torch.float32)  # save memory
 
 ## Examples and Tutorials
 
-See the `examples/` directory for more examples:
+See the `Example/` directory for more examples:
 
-- `basic_lens_simulation.py`: basic lens simulation
-- `doe_design.py`: diffractive optics design
-- `beam_propagation.py`: beam propagation analysis
-- `gpu_acceleration.py`: GPU acceleration
+- `Metalens_Example1_ASM/FS/RS`: metalens focusing with the three propagators
+- `Metalens_Example2_MetaAtom`: realistic metalens from the bundled `asia_1310.npy` meta-atom library
+- `Dot_projector_Example1`: diffractive dot projector
+- `hopfion`: hopfion field synthesis
+- `Laser2Metalens_Collimator_MetaAtom` / `Laser2Metalens_Collimator_IdealPhase`:
+  laser collimator from Zemax POP sources (requires POP `.txt` exports under
+  `source/`, not distributed with the repository due to file size)
 
 ### Google Colab Examples
 
@@ -219,7 +244,7 @@ pip install -e .[dev]
 ### Run tests
 
 ```bash
-pytest tests/
+python test_basic.py
 ```
 
 ## License
@@ -257,3 +282,17 @@ If you use this library in your research, please cite:
 ### v1.0.4 (2025-10-28)
 - Fix plot figure bug
 - Add figure option
+
+### v1.0.6 (2026-07-04)
+- **Meta-atom database support** (`optiprop.metaatom`):
+  - `MetaAtomLibrary` — load a meta-atom database (`.npy` with a `data_sheet`
+    dict), nearest wrapped-phase lookup with optional amplitude penalty
+    (`alpha`), phase-coverage statistics, `rich_print()` / `plot()`
+  - `MetaAtomElement` — replace an ideal `PhaseElement` field with realizable
+    meta-atom amplitude/phase, optional global phase-offset optimization,
+    phase-error maps, and `export_parameter_map()` (R per pixel) for fabrication
+- **Zemax POP source** (`optiprop.ZemaxPOPSource`) — load "Listing of POP
+  Irradiance/Phase Data" text exports (UTF-16), reconstruct
+  `U = sqrt(I)*exp(j*phase)` and bilinearly resample onto the simulation grid
+- New examples: `Metalens_Example2_MetaAtom` and
+  `Laser2Metalens_Collimator_*` (single-phase dual-polarization collimator)

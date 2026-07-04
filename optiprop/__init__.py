@@ -11,7 +11,7 @@ Main Features:
 
 Author: Yu-Chen-Yi
 Email: chenyi@g.ncu.edu.tw
-Version: 1.0.5
+Version: 1.0.6
 """
 
 # Import main classes and functions
@@ -53,7 +53,7 @@ from .utils import (
 )
 
 # Version information
-__version__ = "1.0.5"
+__version__ = "1.0.6"
 __author__ = "Yu-Chen-Yi"
 __email__ = "chenyi@g.ncu.edu.tw"
 
@@ -112,6 +112,7 @@ def info():
     print("A Python library for optical field propagation simulation")
     print("\nMain modules:")
     print("- elements: Optical element modeling")
+    print("- metaatom: Meta-atom database lookup")
     print("- propagation: Propagation algorithms")
     print("- utils: Utility functions")
     print("\nUsage example:")
