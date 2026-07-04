@@ -88,6 +88,29 @@ P_x = source_x.source_total_power
 P_y = source_y.source_total_power
 print(f'polarization power ratio Ey/Ex = {P_y / P_x:.1f}')
 
+# Source amplitude and phase for both polarizations (at the source plane)
+extent = [near_field.X.min().item()*1e6, near_field.X.max().item()*1e6,
+          near_field.Y.min().item()*1e6, near_field.Y.max().item()*1e6]
+fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+for row, (pol, src) in enumerate([('Ex', source_x), ('Ey', source_y)]):
+    amplitude = torch.abs(src.U0).cpu().numpy()
+    phase = (torch.angle(src.U0) % (2*np.pi)).cpu().numpy()
+    im0 = axes[row, 0].imshow(amplitude, extent=extent, cmap='turbo', origin='lower')
+    axes[row, 0].set_title(f'{pol} amplitude (source plane)')
+    fig.colorbar(im0, ax=axes[row, 0], label='Amplitude')
+    im1 = axes[row, 1].imshow(phase, extent=extent, cmap='turbo', origin='lower',
+                              vmin=0, vmax=2*np.pi)
+    axes[row, 1].set_title(f'{pol} phase (source plane)')
+    fig.colorbar(im1, ax=axes[row, 1], label='Phase (rad)')
+    for ax in axes[row]:
+        ax.set_xlabel('x (µm)')
+        ax.set_ylabel('y (µm)')
+        ax.set_xlim(-30, 30)
+        ax.set_ylim(-30, 30)
+fig.tight_layout()
+fig.savefig(os.path.join(OUTPUT_DIR, 'collimator_source_ExEy.png'), dpi=300, bbox_inches='tight')
+plt.close(fig)
+
 # ----------------------------------------------------------------------------
 # 3. Joint single-phase collimator (intensity-weighted phase conjugation)
 # ----------------------------------------------------------------------------
