@@ -1,3 +1,6 @@
+import re
+
+import numpy as np
 import torch
 import torch.nn.functional as F
 from .utils import *
@@ -880,11 +883,13 @@ class ZemaxPOPSource(PhaseElement):
                 'dx' (m), 'dy' (m), 'wavelength' (m or None),
                 'index' (float or None).
         """
-        import re
-        import numpy as np
-
-        with open(file_path, encoding='utf-16') as f:
-            lines = f.readlines()
+        try:
+            with open(file_path, encoding='utf-16') as f:
+                lines = f.readlines()
+        except UnicodeError:
+            # Zemax exports UTF-16; fall back for files re-saved as UTF-8
+            with open(file_path, encoding='utf-8-sig') as f:
+                lines = f.readlines()
 
         header = {'Nx': None, 'Ny': None, 'dx': None, 'dy': None,
                   'wavelength': None, 'index': None}
@@ -892,11 +897,20 @@ class ZemaxPOPSource(PhaseElement):
         for i, line in enumerate(lines):
             s = line.strip()
             if s.startswith('Grid size'):
-                nx, ny = re.findall(r'(\d+)\s*by\s*(\d+)', s)[0]
-                header['Nx'], header['Ny'] = int(nx), int(ny)
+                found = re.findall(r'(\d+)\s*by\s*(\d+)', s)
+                if not found:
+                    raise ValueError(
+                        f"Could not parse the 'Grid size' header line in {file_path}: {s!r}"
+                    )
+                header['Nx'], header['Ny'] = int(found[0][0]), int(found[0][1])
             elif s.startswith('Point spacing'):
-                dx, dy = re.findall(r'([\d.E+-]+)\s*by\s*([\d.E+-]+)', s)[0]
-                header['dx'], header['dy'] = float(dx) * 1e-3, float(dy) * 1e-3  # mm -> m
+                found = re.findall(r'([\d.E+-]+)\s*by\s*([\d.E+-]+)', s)
+                if not found:
+                    raise ValueError(
+                        f"Could not parse the 'Point spacing' header line in {file_path}: {s!r}"
+                    )
+                # mm -> m
+                header['dx'], header['dy'] = float(found[0][0]) * 1e-3, float(found[0][1]) * 1e-3
             elif s.startswith('Beam wavelength'):
                 m = re.search(r'wavelength is\s*([\d.E+-]+).*index\s*([\d.E+-]+)', s)
                 if m:
@@ -911,13 +925,23 @@ class ZemaxPOPSource(PhaseElement):
                     except ValueError:
                         pass
         if header['Nx'] is None or data_start is None:
-            raise ValueError(f"Could not parse Zemax POP listing: {file_path}")
+            raise ValueError(
+                f"Could not parse Zemax POP listing (no 'Grid size' header or "
+                f"data block found): {file_path}"
+            )
+        if header['dx'] is None or header['dy'] is None:
+            raise ValueError(
+                f"Missing 'Point spacing' header line in Zemax POP listing: {file_path}"
+            )
 
         rows = []
         for line in lines[data_start:]:
             parts = line.split()
             if len(parts) == header['Nx']:
-                rows.append(np.array(parts, dtype=np.float64))
+                try:
+                    rows.append(np.array(parts, dtype=np.float64))
+                except ValueError:
+                    continue  # footer/comment line with Nx non-numeric tokens
         data = np.stack(rows)
         if data.shape != (header['Ny'], header['Nx']):
             raise ValueError(
@@ -945,14 +969,16 @@ class ZemaxPOPSource(PhaseElement):
                 center on the simulation grid
             normalize_power (bool): If True, normalize the field to unit
                 total power on the simulation grid
-            flip_y (bool): If True, flip the source data along Y (use when
-                the listing row order is opposite to the grid convention)
+            flip_y (bool): If True, flip the source data along Y. Zemax POP
+                text listings typically print the top (+y) row first, in
+                which case flip_y=True restores the physical orientation;
+                the default False maps listing row 0 to -y. A wrong setting
+                is invisible for y-symmetric beams but vertically flips
+                asymmetric ones.
 
         Returns:
             torch.Tensor: Complex field U0
         """
-        import numpy as np
-
         if intensity_file is None:
             raise ValueError("intensity_file is required.")
 
@@ -983,7 +1009,14 @@ class ZemaxPOPSource(PhaseElement):
         self.source_dy = header['dy']
         self.source_wavelength = header['wavelength']
         self.source_index = header['index']
-        self.source_total_power = float(intensity.sum() * header['dx'] * header['dy'])
+        if self.source_Nx < 2 or self.source_Ny < 2:
+            raise ValueError(
+                "The POP source grid must be at least 2x2 for bilinear "
+                f"resampling; got {self.source_Nx} x {self.source_Ny}."
+            )
+        # Zemax POP irradiance is W/mm^2; dx/dy were converted to meters,
+        # so convert the cell area back to mm^2 (x 1e6) for the power in W.
+        self.source_total_power = float(intensity.sum() * header['dx'] * header['dy'] * 1e6)
 
         # Reconstruct the complex field on the source grid
         amplitude = np.sqrt(np.clip(intensity, 0, None))
@@ -1016,6 +1049,8 @@ class ZemaxPOPSource(PhaseElement):
         return self.U0
 
     def rich_print(self):
+        if self.U0 is None:
+            raise ValueError("Please calculate phase first by calling calculate_phase()")
         self.near_field.rich_print()
         table = Table(title="ZEMAX POP SOURCE", show_header=True, header_style="bold magenta")
         table.add_column("Attribute", style="cyan", no_wrap=True)

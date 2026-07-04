@@ -30,6 +30,19 @@ import optiprop
 REPO_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 OUTPUT_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# The Zemax POP source listings are NOT distributed with the repository
+# (>100 MB each, over the GitHub file limit). Export them from Zemax and
+# place them under source/ before running this example.
+SOURCE_DIR = os.path.join(REPO_ROOT, 'source')
+_required = [f'P3_10um_{p}_{k}.txt' for p in ('EX', 'EY') for k in ('I', 'Phase')]
+_missing = [f for f in _required if not os.path.exists(os.path.join(SOURCE_DIR, f))]
+if _missing:
+    sys.exit(
+        'Missing Zemax POP source files (not distributed with the repository):\n  '
+        + '\n  '.join(os.path.join('source', f) for f in _missing)
+        + '\nExport the POP irradiance/phase listings from Zemax and place them under source/.'
+    )
+
 # ----------------------------------------------------------------------------
 # Design parameters
 # ----------------------------------------------------------------------------
