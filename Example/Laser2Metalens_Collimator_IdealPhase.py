@@ -21,6 +21,7 @@ import matplotlib
 matplotlib.use('Agg')  # no blocking windows
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy.io as sio
 import torch
 
 # Allow running the example without installing the package
@@ -230,6 +231,24 @@ np.savez(
 )
 print('Saved fields after collimator to collimator_ideal_output_fields.npz '
       '(keys: U_after_Ex, U_after_Ey, pixel_size, design_lambda)')
+
+# Propagate 0.2 um in air past the lens and save Ex/Ey as a .mat (complex double)
+PROP_AFTER_LENS = 0.2e-6
+mat_data = {'dx': PIXEL_SIZE, 'dy': PIXEL_SIZE,
+            'Nx': int(near_field.Nx), 'Ny': int(near_field.Ny)}
+for pol, U_after in [('EX', U_after_x), ('EY', U_after_y)]:
+    p = optiprop.ASMPropagation(
+        propagation_wavelength=DESIGN_LAMBDA,
+        propagation_distance=PROP_AFTER_LENS,
+        n=1.0,
+        device=DEVICE,
+    )
+    p.set_input_field(u_in=U_after, pixel_size=PIXEL_SIZE)
+    p.propagate()
+    mat_data[pol] = p.get_output_U.cpu().numpy().astype(np.complex128)
+sio.savemat(os.path.join(OUTPUT_DIR, 'collimator_ideal_output_0p2um.mat'), mat_data)
+print('Saved fields 0.2 um after lens to collimator_ideal_output_0p2um.mat '
+      '(keys: EX, EY [complex double], dx, dy, Nx, Ny)')
 
 z_range = np.linspace(1e-6, 1000e-6, 201)
 fig, axes = plt.subplots(2, 1, figsize=(14, 8), sharex=True)
