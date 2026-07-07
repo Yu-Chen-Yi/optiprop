@@ -236,6 +236,16 @@ fig.suptitle('Single-phase collimator (asia_1310): Ex and Ey polarizations')
 fig.savefig(os.path.join(OUTPUT_DIR, 'collimator_sigma_vs_z.png'), dpi=300, bbox_inches='tight')
 plt.close(fig)
 
+# Save the incident fields at the metalens plane (before the lens) as .mat
+sio.savemat(os.path.join(OUTPUT_DIR, 'collimator_before_lens.mat'), {
+    'EX': U_x.cpu().numpy().astype(np.complex128),
+    'EY': U_y.cpu().numpy().astype(np.complex128),
+    'dx': PIXEL_SIZE, 'dy': PIXEL_SIZE,
+    'Nx': int(near_field.Nx), 'Ny': int(near_field.Ny),
+})
+print('Saved incident fields at the metalens plane to collimator_before_lens.mat '
+      '(keys: EX, EY [complex double], dx, dy, Nx, Ny)')
+
 # Save the complex fields right after the collimator (U * meta_lens.U0)
 U_after_x = U_x * meta_lens.U0
 U_after_y = U_y * meta_lens.U0
