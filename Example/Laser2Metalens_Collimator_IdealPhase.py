@@ -1,15 +1,23 @@
 """
-Laser-to-Metalens Collimator with an IDEAL HYPERBOLIC PHASE (f = 26.6 um in air).
+Laser-to-Metalens Collimator with an IDEAL HYPERBOLIC PHASE (f = 21 um in air).
 
 Same pipeline and figures as Laser2Metalens_Collimator_MetaAtom.py, but the
 collimating phase is NOT the joint phase conjugation — it is the analytic
-equal-path (hyperbolic) lens phase with focal length 26.6 um in air:
+equal-path (hyperbolic) lens phase with focal length f:
 
-    phi(r) = -2*pi/lambda * ( sqrt(r^2 + f^2) - f ),   f = 26.6 um
+    phi(r) = -2*pi/lambda * ( sqrt(r^2 + f^2) - f )
 
 realized with the asia_1310 meta-atom database (MetaAtomElement), applied to
 both polarizations (Ex, Ey) of the Zemax POP source after 40 um of
 propagation in the glue (n = 1.5).
+
+The focal length f = 21 um was found by scanning the Ey wavefront RMS after
+the lens: it minimizes the residual wavefront error for the dominant Ey
+polarization (0.074 waves at f=21 um vs 0.094 waves at the geometric guess
+f = 40/1.5 = 26.6 um). Note this analytic phase still cannot match the
+free-form joint phase conjugation (~0.002 waves) — the source is astigmatic
+(x and y favor slightly different focal lengths) and has an irregular
+near-field wavefront that no single hyperbolic profile can cancel.
 
 Run from the repository root:
     python Example/Laser2Metalens_Collimator_IdealPhase.py
@@ -51,7 +59,8 @@ DESIGN_LAMBDA = 1.31e-6        # m (vacuum wavelength)
 N_GLUE = 1.5                   # refractive index of the glue
 GLUE_DISTANCE = 40e-6          # m, source -> metalens
 LENS_DIAMETER = 90e-6          # m
-FOCAL_LENGTH = 26.6e-6         # m, ideal hyperbolic lens focal length (in air)
+FOCAL_LENGTH = 21e-6           # m, best hyperbolic focal length for Ey (scanned;
+                               # cf. geometric guess 40/1.5 = 26.6 um)
 PIXEL_SIZE = 325e-9            # m (= half of the 650 nm meta-atom period)
 FIELD_L = 160e-6               # m simulation window
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -114,7 +123,7 @@ fig.savefig(os.path.join(OUTPUT_DIR, 'collimator_ideal_source_ExEy.png'), dpi=30
 plt.close(fig)
 
 # ----------------------------------------------------------------------------
-# 3. Ideal hyperbolic lens phase (f = 26.6 um in air) realized with meta-atoms
+# 3. Ideal hyperbolic lens phase (f = 21 um in air) realized with meta-atoms
 # ----------------------------------------------------------------------------
 aperture = (near_field.X**2 + near_field.Y**2) <= (LENS_DIAMETER / 2)**2
 
@@ -154,7 +163,7 @@ def wavefront_rms(U):
 
 # Wavefront flatness after the lens for both polarizations
 for pol, U in [('Ex', U_x), ('Ey', U_y)]:
-    for lens_name, L in [('ideal f=26.6', ideal_lens.U0), ('metaatom', meta_lens.U0), ('no lens', aperture)]:
+    for lens_name, L in [('ideal f=21', ideal_lens.U0), ('metaatom', meta_lens.U0), ('no lens', aperture)]:
         rms = wavefront_rms(U * L)
         print(f'wavefront RMS {pol} ({lens_name:12s}): {rms:.4f} rad = {rms/(2*np.pi):.4f} waves')
 
@@ -213,7 +222,7 @@ for ax, comp, lbl in [(axes[0], 0, '$\\sigma_x$'), (axes[1], 1, '$\\sigma_y$')]:
     ax.grid(alpha=0.3)
     ax.legend()
 axes[0].set_ylabel('beam size $\\sigma$ (µm)')
-fig.suptitle('Ideal-phase collimator f = 26.6 µm (asia_1310): Ex and Ey polarizations')
+fig.suptitle('Ideal-phase collimator f = 21 µm (asia_1310): Ex and Ey polarizations')
 fig.savefig(os.path.join(OUTPUT_DIR, 'collimator_ideal_sigma_vs_z.png'), dpi=300, bbox_inches='tight')
 plt.close(fig)
 
@@ -279,7 +288,7 @@ for ax, (pol, U_after) in zip(axes, [('Ey', U_after_y), ('Ex', U_after_x)]):
     )
     ax.set_ylabel('x (µm)')
     ax.set_ylim(-100, 100)
-    ax.set_title(f'XZ intensity after metalens ({pol}, ideal phase f = 26.6 µm)')
+    ax.set_title(f'XZ intensity after metalens ({pol}, ideal phase f = 21 µm)')
     fig.colorbar(im, ax=ax, label='Intensity')
 axes[-1].set_xlabel('z (µm)')
 fig.savefig(os.path.join(OUTPUT_DIR, 'collimator_ideal_xz_ExEy.png'), dpi=300, bbox_inches='tight')
