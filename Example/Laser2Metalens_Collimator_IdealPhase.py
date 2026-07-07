@@ -220,6 +220,16 @@ plt.close(fig)
 # ----------------------------------------------------------------------------
 # 5. Save the output fields and plot the XZ intensity maps (Ex + Ey)
 # ----------------------------------------------------------------------------
+# Save the incident fields at the metalens plane (before the lens) as .mat
+sio.savemat(os.path.join(OUTPUT_DIR, 'collimator_ideal_before_lens.mat'), {
+    'EX': U_x.cpu().numpy().astype(np.complex128),
+    'EY': U_y.cpu().numpy().astype(np.complex128),
+    'dx': PIXEL_SIZE, 'dy': PIXEL_SIZE,
+    'Nx': int(near_field.Nx), 'Ny': int(near_field.Ny),
+})
+print('Saved incident fields at the metalens plane to collimator_ideal_before_lens.mat '
+      '(keys: EX, EY [complex double], dx, dy, Nx, Ny)')
+
 U_after_x = U_x * meta_lens.U0
 U_after_y = U_y * meta_lens.U0
 np.savez(
