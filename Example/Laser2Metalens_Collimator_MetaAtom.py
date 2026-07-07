@@ -173,24 +173,25 @@ meta_lens.rich_print()
 meta_lens.export_parameter_map(os.path.join(OUTPUT_DIR, 'collimator_R_map.csv'))
 meta_lens.draw_parameter_map(show=False, save_path=os.path.join(OUTPUT_DIR, 'collimator_R_map.png'))
 
-# Metalens transmission amplitude and phase (realized meta-atom values)
-metalens_amp = torch.abs(meta_lens.U0).cpu().numpy()
-metalens_phase = (torch.angle(meta_lens.U0) % (2 * np.pi)).cpu().numpy()
-fig, axes = plt.subplots(1, 2, figsize=(13, 5.5))
-im0 = axes[0].imshow(metalens_amp, extent=extent, cmap='turbo', origin='lower')
-axes[0].set_title('Metalens amplitude')
-fig.colorbar(im0, ax=axes[0], label='Amplitude')
-im1 = axes[1].imshow(metalens_phase, extent=extent, cmap='turbo', origin='lower',
-                     vmin=0, vmax=2 * np.pi)
-axes[1].set_title('Metalens phase')
-fig.colorbar(im1, ax=axes[1], label='Phase (rad)')
-for ax in axes:
-    ax.set_xlabel('x (µm)')
-    ax.set_ylabel('y (µm)')
-    ax.set_xlim(-50, 50)
-    ax.set_ylim(-50, 50)
+# Ex/Ey amplitude and phase right after the metalens (source field * metalens)
+fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+for row, (pol, U_after) in enumerate([('Ex', U_x * meta_lens.U0), ('Ey', U_y * meta_lens.U0)]):
+    amplitude = torch.abs(U_after).cpu().numpy()
+    phase = (torch.angle(U_after) % (2 * np.pi)).cpu().numpy()
+    im0 = axes[row, 0].imshow(amplitude, extent=extent, cmap='turbo', origin='lower')
+    axes[row, 0].set_title(f'{pol} amplitude (after metalens)')
+    fig.colorbar(im0, ax=axes[row, 0], label='Amplitude')
+    im1 = axes[row, 1].imshow(phase, extent=extent, cmap='turbo', origin='lower',
+                              vmin=0, vmax=2 * np.pi)
+    axes[row, 1].set_title(f'{pol} phase (after metalens)')
+    fig.colorbar(im1, ax=axes[row, 1], label='Phase (rad)')
+    for ax in axes[row]:
+        ax.set_xlabel('x (µm)')
+        ax.set_ylabel('y (µm)')
+        ax.set_xlim(-50, 50)
+        ax.set_ylim(-50, 50)
 fig.tight_layout()
-fig.savefig(os.path.join(OUTPUT_DIR, 'collimator_metalens_amp_phase.png'), dpi=300, bbox_inches='tight')
+fig.savefig(os.path.join(OUTPUT_DIR, 'collimator_after_lens_ExEy.png'), dpi=300, bbox_inches='tight')
 plt.close(fig)
 
 # Wavefront flatness after the lens for both polarizations
