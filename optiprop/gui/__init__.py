@@ -1,28 +1,18 @@
-"""Optional Qt desktop user interface for OptiProp.
+"""Compatibility launcher for OptiProp's local browser workbench.
 
-Importing :mod:`optiprop` never imports Qt.  GUI symbols are loaded lazily so
-the numerical package remains usable on servers without PySide6 installed.
+The former Qt widgets are no longer part of this package. Importing this
+module does not start a server or open a browser.
 """
 
 from __future__ import annotations
 
-from typing import Any
-
 
 def launch(argv: list[str] | None = None) -> int:
-    """Start the desktop application and return its process exit code."""
+    """Start the browser workbench and return its process exit code."""
 
     from .app import main
 
     return main(argv)
 
 
-def __getattr__(name: str) -> Any:
-    if name == "MainWindow":
-        from .main_window import MainWindow
-
-        return MainWindow
-    raise AttributeError(name)
-
-
-__all__ = ["MainWindow", "launch"]
+__all__ = ["launch"]

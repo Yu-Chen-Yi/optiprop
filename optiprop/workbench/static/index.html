@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>OptiProp 工作台</title></head><body>
+<div id="op-general-bench" aria-label="OptiProp 通用光路工作台">
+  <link rel="stylesheet" href="/app.css">
+  <header class="gb-bar"><div><span class="gb-brand">OptiProp</span> <span class="gb-muted">／ 通用光場工作台</span></div><span class="gb-note" id="gb-version">本機運算 · 無 Qt</span><button type="button" id="gb-quit">結束工作台</button></header>
+  <div class="gb-tools">
+    <button type="button" id="gb-new">空白專案</button>
+    <button type="button" id="gb-open">開啟 JSON</button><input type="file" id="gb-file" accept=".json,.oprop" hidden>
+    <button type="button" id="gb-save">儲存 JSON</button>
+    <label class="gb-inline">載入範例<select id="gb-example"><option value="">選擇範例</option><option value="free">自由傳播</option><option value="focus">Metalens 聚焦 · 理想相位</option><option value="focus-binary2">Metalens 聚焦 · Binary2</option><option value="laser">雷射準直 · 解析光源示範</option></select></label>
+    <button type="button" id="gb-undo" disabled>復原</button>
+  </div>
+  <div class="gb-message" id="gb-message" role="status" hidden></div>
+  <details style="margin:0 18px 14px"><summary>本機檔案與計算設定</summary>
+    <div class="gb-tools">
+      <label class="gb-field">專案資產根目錄<input id="gb-asset-root" type="text"></label>
+      <label class="gb-field">匯入光場路徑 · canonical NPZ / MAT / ZBF<input id="gb-import-path" type="text" placeholder="完整檔案路徑"></label>
+      <button type="button" id="gb-import">從光場建立新專案</button>
+      <label class="gb-inline">運算<select id="gb-device"><option value="cpu">CPU</option><option value="cuda">CUDA（需支援）</option></select></label>
+      <label class="gb-inline">精度<select id="gb-precision"><option value="complex128">complex128</option><option value="complex64">complex64</option></select></label>
+    </div>
+    <p class="gb-muted" id="gb-output-root" style="margin:0 18px 12px"></p>
+  </details>
+  <div class="gb-layout">
+    <section class="gb-panel" aria-label="光路順序">
+      <div class="gb-heading"><h2>光路順序</h2><span class="gb-muted" id="gb-length">0 段 · z = 0 µm</span></div>
+      <div class="gb-muted" id="gb-project-name" style="margin-bottom:12px">未命名專案</div>
+      <div class="gb-stack" id="gb-stack"></div>
+      <div class="gb-empty" id="gb-empty">尚無傳遞段或元件<br>由下方加入第一個步驟</div>
+      <div class="gb-add">
+        <button type="button" class="gb-primary" id="gb-add-propagation">＋ 傳遞一段距離</button>
+        <select id="gb-add-kind" aria-label="要插入的元件"><option value="IdealLensLayer">透鏡 · 理想 / Binary2</option><option value="ApertureLayer">孔徑</option><option value="InterfaceLayer">介質界面</option></select>
+        <button type="button" id="gb-add-element">＋ 插入元件</button>
+      </div>
+      <div class="gb-muted" style="margin-top:8px">加在選中步驟之後。元件本身不增加傳遞距離。</div>
+      <details><summary>目前的專案 JSON</summary><pre id="gb-json"></pre></details>
+    </section>
+    <section class="gb-panel" aria-label="步驟屬性與觀察">
+      <h2 id="gb-editor-title">光源</h2>
+      <div id="gb-editor" style="margin-top:12px"></div>
+      <div class="gb-controls" id="gb-layer-controls" hidden>
+        <button type="button" id="gb-up">上移</button><button type="button" id="gb-down">下移</button><button type="button" id="gb-copy">複製</button><button type="button" id="gb-remove">移除</button>
+      </div>
+      <details open><summary>觀察所選步驟</summary>
+        <label class="gb-inline" style="margin-top:12px">觀察面<select id="gb-side"><option value="after">輸出面</option><option value="before">輸入面</option></select></label>
+        <div class="gb-muted" id="gb-observer" style="margin-top:8px">z = 0 µm</div>
+        <div class="gb-inline" style="margin-top:12px"><button type="button" id="gb-check">檢查設定</button><button type="button" id="gb-run" class="gb-primary">計算完整光路</button><button type="button" id="gb-cancel" disabled>取消</button></div>
+      </details>
+    </section>
+    <section class="gb-panel" style="grid-column:1/-1" aria-label="實際計算結果">
+      <h2>光場結果</h2><p id="gb-run-status" aria-live="polite">尚未計算</p>
+      <div class="gb-inline">
+        <label>顯示<select id="gb-quantity"><option value="amplitude_phase">Ex / Ey 振幅與相位</option><option value="intensity">Ex / Ey 強度</option></select></label>
+        <button type="button" id="gb-view" disabled>查看所選觀察面</button>
+        <label>匯出<select id="gb-format"><option value="npz">NPZ · canonical</option><option value="mat">MAT · complex double</option><option value="zbf">ZBF · mm / 2ⁿ</option><option value="png">PNG · 投影片</option></select></label>
+        <button type="button" id="gb-export" disabled>儲存所選光場</button>
+      </div>
+      <p id="gb-result-plane" class="gb-muted"></p>
+      <img id="gb-result" hidden alt="實際光場 Ex 與 Ey 的計算結果" style="display:block;width:100%;height:auto">
+      <details><summary>由此觀察面向後掃描 XZ（同一均勻介質）</summary>
+        <div class="gb-tools">
+          <label class="gb-field">掃描距離 · µm<input id="gb-xz-distance" type="number" min="0.001" step="any" value="150"></label>
+          <label class="gb-field">取樣點數<input id="gb-xz-count" type="number" min="3" max="201" step="1" value="81"></label>
+          <button type="button" id="gb-xz" disabled>計算 Ex / Ey XZ</button>
+        </div>
+        <p class="gb-muted">掃描從所選輸入／輸出面開始，不再經過光路中的後續元件。要看聚焦，選透鏡輸出面。</p>
+        <img id="gb-xz-result" hidden alt="Ex 與 Ey 的 XZ 強度" style="display:block;width:100%;height:auto">
+      </details>
+    </section>
+  </div>
+  <footer class="gb-footer" id="gb-status" aria-live="polite">光場只在本機運算，不傳至外部服務。修改設定後請重新計算。</footer>
+
+</div>
+
+
+<script src="/app.js"></script></body></html>

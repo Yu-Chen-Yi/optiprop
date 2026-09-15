@@ -1,0 +1,58 @@
+{
+  "format": "optiprop-project",
+  "schema_version": 1,
+  "project_id": "290bf33a-bb43-490e-83df-a9856a055687",
+  "name": "Metalens focusing — Binary2 phase",
+  "source": {
+    "type": "IncidentSource",
+    "id": "6f81f1e7-64df-4943-95b8-ceb0a94e02c0",
+    "name": "Plane wave at metalens — Ex/Ey",
+    "kind": "plane_wave",
+    "grid": {"nx": 512, "ny": 512, "dx": 0.00000025, "dy": 0.00000025},
+    "wavelength_m": 0.00000131,
+    "medium_index": 1.0,
+    "components": ["Ex", "Ey"],
+    "amplitudes": [1.0, 0.5]
+  },
+  "optical_system": {
+    "type": "OpticalSystem",
+    "id": "3dd3529a-cc46-422a-a723-4dcba73b4e8b",
+    "name": "Plane wave to focal plane",
+    "layers": [
+      {
+        "type": "Binary2LensLayer",
+        "id": "a46295bc-a8dc-4c53-a221-b03102bcd362",
+        "name": "Binary2 metalens — diameter 60 um",
+        "coefficients": [-23981.62330984575, 599540.5827461437, -29977029.137307186, 1873564321.081699],
+        "transmission_amplitude": 1.0,
+        "aperture": {"shape": "circle", "size_x_m": 0.00006}
+      },
+      {
+        "type": "PropagationLayer",
+        "id": "d2ae456a-8090-4913-a99d-a899d761a14c",
+        "name": "ASM — 100 um to reference focal plane",
+        "spec": {"method": "asm", "distance_m": 0.0001, "medium_index": 1.0, "padding": {"mode": "factor", "factor": 2}},
+        "keep_intermediate": true
+      }
+    ]
+  },
+  "compute_settings": {"device": "cpu", "precision": "complex128"},
+  "assets": [],
+  "metadata": {
+    "example": true,
+    "reference_focal_length_m": 0.0001,
+    "coefficient_reference_wavelength_m": 0.00000131,
+    "coefficient_reference_medium_index": 1.0,
+    "description": "Four-term Taylor approximation (r^2 through r^8) of the f=100 um equal-path phase at 1310 nm in air; not exact equal-path and not a database/full-wave model.",
+    "length_unit": "m",
+    "coefficient_units": "C_i: rad/mm^(2*i), radius measured in mm",
+    "assumptions": ["Both components share one scalar transmission", "Ey input amplitude is 0.5 times Ex", "Coefficients specify fixed radians and do not rescale automatically with wavelength", "Reference focal length is diagnostic metadata, not a Binary2 physics parameter"]
+  },
+  "ui_state": {
+    "lens_model_drafts": {
+      "a46295bc-a8dc-4c53-a221-b03102bcd362": {
+        "IdealLensLayer": {"focal_length_m": 0.0001, "phase_model": "exact_equal_path", "design_wavelength_m": 0.00000131, "medium_index": 1.0}
+      }
+    }
+  }
+}

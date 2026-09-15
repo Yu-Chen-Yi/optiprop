@@ -1,0 +1,43 @@
+{
+  "format": "optiprop-project",
+  "schema_version": 1,
+  "project_id": "29284b6e-d0fb-4cd7-b9ac-774fb4b24473",
+  "name": "Free propagation — Gaussian Ex/Ey",
+  "source": {
+    "type": "IncidentSource",
+    "id": "98b94763-76b1-4b32-b1d5-041c282c267b",
+    "name": "Gaussian source",
+    "kind": "gaussian",
+    "grid": {"nx": 128, "ny": 128, "dx": 0.000001, "dy": 0.000001},
+    "wavelength_m": 0.000000532,
+    "medium_index": 1.0,
+    "components": ["Ex", "Ey"],
+    "amplitudes": [1.0, 0.5],
+    "waist_x_m": 0.00001,
+    "waist_y_m": 0.00001
+  },
+  "optical_system": {
+    "type": "OpticalSystem",
+    "id": "e4a94a5c-6fd8-46b3-90f2-c8573e5a8cae",
+    "name": "Two free-space segments",
+    "layers": [
+      {
+        "type": "PropagationLayer",
+        "id": "c74d02d8-0975-4f4a-a5ca-060d3cd45678",
+        "name": "Air — 100 um",
+        "spec": {"method": "asm", "distance_m": 0.0001, "medium_index": 1.0, "padding": {"mode": "factor", "factor": 2}},
+        "keep_intermediate": true
+      },
+      {
+        "type": "PropagationLayer",
+        "id": "bb277af9-9b43-4e9c-b9e0-1acd40fed431",
+        "name": "Air — 200 um",
+        "spec": {"method": "asm", "distance_m": 0.0002, "medium_index": 1.0, "padding": {"mode": "factor", "factor": 2}},
+        "keep_intermediate": true
+      }
+    ]
+  },
+  "compute_settings": {"device": "cpu", "precision": "complex128"},
+  "assets": [],
+  "metadata": {"example": true, "description": "Self-contained analytic source. Two ordered propagation operations, no lens and no optimization.", "length_unit": "m"}
+}

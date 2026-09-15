@@ -1,0 +1,50 @@
+{
+  "format": "optiprop-project",
+  "schema_version": 1,
+  "project_id": "a5b480e0-435e-49a6-b219-c55988f00f37",
+  "name": "Metalens focusing — ideal phase",
+  "source": {
+    "type": "IncidentSource",
+    "id": "9e5e2d15-097e-4a11-9666-18d613978f1d",
+    "name": "Plane wave at metalens — Ex/Ey",
+    "kind": "plane_wave",
+    "grid": {"nx": 512, "ny": 512, "dx": 0.00000025, "dy": 0.00000025},
+    "wavelength_m": 0.00000131,
+    "medium_index": 1.0,
+    "components": ["Ex", "Ey"],
+    "amplitudes": [1.0, 0.5]
+  },
+  "optical_system": {
+    "type": "OpticalSystem",
+    "id": "a8cc44d0-69bc-4494-a991-43923a4e3ca5",
+    "name": "Plane wave to focal plane",
+    "layers": [
+      {
+        "type": "IdealLensLayer",
+        "id": "c5983c65-3b93-4053-a8e7-01a0a9f9006c",
+        "name": "Ideal metalens — diameter 60 um, f 100 um",
+        "focal_length_m": 0.0001,
+        "design_wavelength_m": 0.00000131,
+        "medium_index": 1.0,
+        "phase_model": "exact_equal_path",
+        "transmission_amplitude": 1.0,
+        "aperture": {"shape": "circle", "size_x_m": 0.00006}
+      },
+      {
+        "type": "PropagationLayer",
+        "id": "cf7603e3-74b9-46a4-b018-491b9d7c08b4",
+        "name": "ASM — 100 um to design focal plane",
+        "spec": {"method": "asm", "distance_m": 0.0001, "medium_index": 1.0, "padding": {"mode": "factor", "factor": 2}},
+        "keep_intermediate": true
+      }
+    ]
+  },
+  "compute_settings": {"device": "cpu", "precision": "complex128"},
+  "assets": [],
+  "metadata": {
+    "example": true,
+    "description": "Plane-wave focusing through an ideal scalar phase metalens. No meta-atom database, fabrication geometry, measured source, or polarization coupling.",
+    "length_unit": "m",
+    "assumptions": ["Equal-path ideal phase with circular aperture", "Both components share one scalar transmission", "Ey input amplitude is 0.5 times Ex", "Scalar diffraction model, not a full-wave metalens model"]
+  }
+}

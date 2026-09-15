@@ -13,6 +13,7 @@ from ..propagation import PaddingSpec, PropagationSpec
 from ..system import (
     ApertureLayer,
     ApertureSpec,
+    Binary2LensLayer,
     ComplexMaskLayer,
     IdealLensLayer,
     IncidentSource,
@@ -121,6 +122,10 @@ def layer_from_config(
         data["aperture"] = None if aperture is None else ApertureSpec(**dict(aperture))
         data["medium_index"] = _optional_complex(data.get("medium_index"))
         return IdealLensLayer(**data, **common)
+    if layer_type == "Binary2LensLayer":
+        aperture = data.pop("aperture", None)
+        data["aperture"] = None if aperture is None else ApertureSpec(**dict(aperture))
+        return Binary2LensLayer(**data, **common)
     if layer_type == "InterfaceLayer":
         data["n1"] = _complex(data["n1"])
         data["n2"] = _complex(data["n2"])

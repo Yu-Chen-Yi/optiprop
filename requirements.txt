@@ -1,3 +1,4 @@
+# Shared numerical dependencies; the local browser workbench needs no Qt/Web packages.
 torch>=1.9.0
 numpy>=1.20.0
 matplotlib>=3.3.0

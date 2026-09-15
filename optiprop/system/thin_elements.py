@@ -371,6 +371,84 @@ class IdealLensLayer(ThinElementLayer):
 
 
 @dataclass(frozen=True)
+class Binary2LensLayer(ThinElementLayer):
+    """Radial even-power phase, matching the legacy ``Binary2Phase`` convention.
+
+    ``phi = phase_offset_rad + sum(C[i-1] * r_mm**(2*i), i=1..N)``,
+    where ``r_mm`` is the numerical radius in millimetres relative to
+    ``center_x_m, center_y_m``. Coefficients have units rad/mm**(2*i).
+    They are NOT waves, normalized-radius coefficients, or two-level phases.
+
+    The coefficients directly specify a fixed phase mask: wavelength and
+    refractive index do not implicitly rescale it. A physical dispersion model
+    or a meta-atom database must be specified separately for that purpose.
+    One scalar transmission is applied to every input component. Coefficients
+    are immutable serialized constants; input-field autograd is preserved.
+    """
+
+    coefficients: tuple[float, ...]
+    transmission_amplitude: float = 1.0
+    phase_offset_rad: float = 0.0
+    center_x_m: float = 0.0
+    center_y_m: float = 0.0
+    aperture: ApertureSpec | None = None
+    name: str = field(default="Binary2 lens", kw_only=True)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if not isinstance(self.coefficients, (list, tuple)):
+            raise TypeError("coefficients must be a non-empty list or tuple of real numbers.")
+        if not self.coefficients:
+            raise ValueError("coefficients must contain at least C1 (the r^2 coefficient).")
+        coefficients = tuple(
+            _finite_float(value, f"coefficients[{i}]")
+            for i, value in enumerate(self.coefficients)
+        )
+        amplitude = _finite_float(self.transmission_amplitude, "transmission_amplitude")
+        if not 0.0 <= amplitude <= 1.0:
+            raise ValueError("transmission_amplitude must lie in [0, 1].")
+        if self.aperture is not None and not isinstance(self.aperture, ApertureSpec):
+            raise TypeError("aperture must be an ApertureSpec or None.")
+        object.__setattr__(self, "coefficients", coefficients)
+        object.__setattr__(self, "transmission_amplitude", amplitude)
+        for key in ("phase_offset_rad", "center_x_m", "center_y_m"):
+            object.__setattr__(self, key, _finite_float(getattr(self, key), key))
+
+    def parameter_config(self) -> dict[str, Any]:
+        return {
+            "version": 1,
+            "coefficients": list(self.coefficients),
+            "transmission_amplitude": self.transmission_amplitude,
+            "phase_offset_rad": self.phase_offset_rad,
+            "center_x_m": self.center_x_m,
+            "center_y_m": self.center_y_m,
+            "aperture": None if self.aperture is None else self.aperture.to_config(),
+        }
+
+    def evaluate_transmission(self, field: Field2D) -> torch.Tensor:
+        x, y = field.grid.meshgrid(device=field.device, dtype=field.real_dtype)
+        radius_squared_mm = ((x - self.center_x_m) * 1e3) ** 2 + (
+            (y - self.center_y_m) * 1e3
+        ) ** 2
+        coefficients = torch.as_tensor(
+            self.coefficients, device=field.device, dtype=field.real_dtype
+        )
+        # Horner form uses one spatial map, not an [ny,nx,coefficient] volume.
+        phase = torch.zeros_like(radius_squared_mm)
+        for coefficient in reversed(coefficients.unbind()):
+            phase = (phase + coefficient) * radius_squared_mm
+        phase = phase + self.phase_offset_rad
+        if not torch.isfinite(phase).all().item():
+            raise ValueError("Binary2 phase overflow: check coefficients, mm units, grid and dtype.")
+        transmission = self.transmission_amplitude * torch.exp(1j * phase)
+        if self.aperture is not None:
+            transmission = transmission * self.aperture.mask(
+                field.grid, device=field.device, dtype=field.real_dtype
+            )
+        return transmission
+
+
+@dataclass(frozen=True)
 class ComplexMaskLayer(ThinElementLayer):
     transmission: torch.Tensor
     grid: Grid2D
@@ -719,6 +797,7 @@ __all__ = [
     "ApertureLayer",
     "ApertureShape",
     "ApertureSpec",
+    "Binary2LensLayer",
     "ComplexMaskLayer",
     "IdealLensLayer",
     "LensPhaseModel",

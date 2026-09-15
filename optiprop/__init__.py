@@ -11,7 +11,7 @@ Main Features:
 
 Author: Yu-Chen-Yi
 Email: chenyi@g.ncu.edu.tw
-Version: 1.0.7
+Version: 1.0.8
 """
 
 # Import main classes and functions
@@ -74,6 +74,7 @@ from .system import (
     ApertureLayer,
     ApertureShape,
     ApertureSpec,
+    Binary2LensLayer,
     ComplexMaskLayer,
     FieldGeometry,
     IdealLensLayer,
@@ -156,7 +157,7 @@ from .utils import (
 )
 
 # Version information
-__version__ = "1.0.7"
+__version__ = "1.0.8"
 __author__ = "Yu-Chen-Yi"
 __email__ = "chenyi@g.ncu.edu.tw"
 
@@ -220,6 +221,7 @@ __all__ = [
     'ComplexMaskLayer',
     'FieldGeometry',
     'IdealLensLayer',
+    'Binary2LensLayer',
     'IncidentSource',
     'InterfaceLayer',
     'InterfaceModel',

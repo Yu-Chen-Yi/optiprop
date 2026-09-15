@@ -1,0 +1,66 @@
+{
+  "format": "optiprop-project",
+  "schema_version": 1,
+  "project_id": "ae3811e7-bdf4-4348-81d6-20c57b49ef01",
+  "name": "Laser collimator — analytic source DEMO",
+  "source": {
+    "type": "IncidentSource",
+    "id": "a107a602-b4b6-4b46-861a-287a87dd7843",
+    "name": "Analytic Gaussian — NOT P3_10um data",
+    "kind": "gaussian",
+    "grid": {"nx": 256, "ny": 256, "dx": 0.0000005, "dy": 0.0000005},
+    "wavelength_m": 0.00000131,
+    "medium_index": 1.5,
+    "components": ["Ex", "Ey"],
+    "amplitudes": [1.0, 0.5],
+    "waist_x_m": 0.000003,
+    "waist_y_m": 0.000003
+  },
+  "optical_system": {
+    "type": "OpticalSystem",
+    "id": "42721cd6-58a6-4e85-b888-d344b9b80fa5",
+    "name": "Editable collimator example",
+    "layers": [
+      {
+        "type": "PropagationLayer",
+        "id": "cba5f91b-59fd-43fb-b5e9-783c73eb2edb",
+        "name": "Glue — 65 um",
+        "spec": {"method": "asm", "distance_m": 0.000065, "medium_index": 1.5, "padding": {"mode": "factor", "factor": 2}},
+        "keep_intermediate": true
+      },
+      {
+        "type": "InterfaceLayer",
+        "id": "f38c767e-9766-48e4-a994-4ee13f8fe1f4",
+        "name": "Glue to air — reflection ignored",
+        "n1": 1.5,
+        "n2": 1.0,
+        "ignore_reflection": true
+      },
+      {
+        "type": "IdealLensLayer",
+        "id": "8a8a00d8-1d6a-4a45-a978-427f84efb10c",
+        "name": "Ideal phase — f 26.6 um in air",
+        "focal_length_m": 0.0000266,
+        "design_wavelength_m": 0.00000131,
+        "medium_index": 1.0,
+        "phase_model": "exact_equal_path",
+        "aperture": {"shape": "circle", "size_x_m": 0.00009}
+      },
+      {
+        "type": "PropagationLayer",
+        "id": "576c3d40-2cb6-49d1-8c3b-a91549b4174d",
+        "name": "Air — 0.2 um after lens",
+        "spec": {"method": "asm", "distance_m": 0.0000002, "medium_index": 1.0, "padding": {"mode": "factor", "factor": 2}},
+        "keep_intermediate": true
+      }
+    ]
+  },
+  "compute_settings": {"device": "cpu", "precision": "complex128"},
+  "assets": [],
+  "metadata": {
+    "example": true,
+    "description": "An editable optical layout, NOT a reproduction of the measured P3_10um Ex/Ey source and NOT a validated collimation design.",
+    "assumptions": ["Analytic Gaussian source", "No meta-atom database", "Interface reflection ignored", "Initial focal length is not optimized"],
+    "length_unit": "m"
+  }
+}

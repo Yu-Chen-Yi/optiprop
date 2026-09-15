@@ -1,8 +1,8 @@
 # Field Propagation Library
 
-> Version 1.0.7 — organized project with moving-window ASM. Requires Python 3.10+.
+> Version 1.0.8 — local browser workbench, no Qt dependency. Requires Python 3.10+.
 > 功能盤點、移動視窗 API 與 GitHub 整理範圍：
-> [CURRENT_FEATURES](docs/CURRENT_FEATURES.md)。
+> [CURRENT_FEATURES](docs/CURRENT_FEATURES.md)（1.0.7 歷史盤點；新版工作台以本頁為準）。
 > 新範例：`python Example/ASM_MovingWindow.py`。
 > 測試：先建立 `tmp/`，再執行 `python -m pytest tests --basetemp=tmp/test-run`。
 
@@ -26,18 +26,64 @@ cd optiprop
 pip install -e .
 ```
 
-For the PySide6 near-field workbench:
+### Local browser workbench
+
+The workbench is included in the normal installation:
 
 ```bash
-pip install -e ".[gui]"
-optiprop-gui
+optiprop-workbench
 ```
 
-The desktop application builds an incident field, lets you arrange and edit
-an arbitrary layer stack, runs the propagation outside the UI thread, and
-shows amplitude, wrapped phase, intensity, line profiles, and XZ scans.
-Projects use a versioned JSON document; imported `.npz`, `.mat`, and `.zbf`
-assets remain separate and are checked by SHA-256 when the project is opened.
+It opens a local browser UI backed by Python's standard-library HTTP server,
+bound to loopback. The service runs on your machine; this is not a hosted web
+service. No PySide6, PyQt, separate web framework, or Node.js installation is
+required. Keep the launcher running while using the browser and stop it with
+the **結束工作台** button when finished (or Ctrl+C for console launches).
+Do not expose the service to a network.
+
+The v1.0.8 workflow covers source configuration, ordered optical-system
+editing and execution, ideal/Binary2 lens parameters, Ex/Ey field views, XZ
+scans, canonical project JSON, and MAT/NPZ/ZBF field I/O. It is not a complete
+optimization or meta-atom database editor. Python-library capabilities and
+future UX proposals should not be read as claims that every feature has a
+browser control.
+
+Choose the observation's input/output side, then **查看所選觀察面**. XZ scanning
+starts at that selected plane in its homogeneous medium; it does not replay
+downstream elements. For focusing, select the lens output before scanning.
+Changing physics invalidates export controls until a new run is completed;
+old runs on disk are retained. The default output directory is
+`Documents/OptiProp/output`, overridable with `--output-dir`.
+
+MAT exports contain canonical metadata plus `EX`, `EY` (complex128), `dx`, `dy`
+(metres), `Nx`, `Ny`. ZBF exports use millimetres and require both dimensions to
+be powers of two; there is no hidden padding. ZBF cannot store absolute z or
+grid-center offsets, so a JSON sidecar retains those coordinates. Import only
+self-describing canonical NPZ/MAT or ZBF files; ambiguous legacy files require
+an explicit mapping through the Python API before loading in this UI.
+
+For predictable desktop memory use this first workbench supports up to 32
+steps, 1,048,576 grid pixels and 32 Binary2 terms, with additional padded-grid
+and snapshot-memory checks. The Python API remains available for larger jobs.
+
+Four self-contained canonical examples are bundled in both the wheel and
+source distribution: `free_propagation.json`, `laser_collimator_demo.json`,
+`metalens_focus_ideal.json`, and `metalens_focus_binary2.json`. Load them from
+the workbench; no private source fields or meta-atom database are required.
+The collimator example uses an analytical source, not a reconstruction of
+private measured data.
+
+`optiprop-gui`, `python -m optiprop.gui.app`, and
+`optiprop.gui.launch()` remain compatibility launchers for the same browser
+application. The `[gui]` extra is now empty for compatibility with existing
+install commands. Qt widgets such as `MainWindow` and the old GUI modules
+are no longer shipped.
+
+Older `.oprop` files containing the old Qt form format are **not silently
+migrated**, even when they have a JSON wrapper. Recreate the project in the
+new workbench or start from a canonical example. Keep the original file;
+the original working copy / v1.0.7 are the recovery path for the old UI.
+File extensions alone do not establish schema compatibility.
 
 Two non-GUI tools are installed as well:
 
@@ -46,15 +92,39 @@ optiprop-inspect input.zbf --json
 optiprop-convert input.zbf output.npz
 ```
 
-### Via pip (recommended)
+### Install a release wheel
+
+After downloading the v1.0.8 wheel, install it in a Python environment:
 
 ```bash
-pip install --index-url https://test.pypi.org/simple/ optiprop
+python -m pip install ./optiprop-1.0.8-py3-none-any.whl
+optiprop-workbench
 ```
 
-### GPU support
+### CPU, CUDA, and portable Windows builds
 
-If you need GPU acceleration, install the CUDA build of PyTorch
+The Windows portable release build uses CPU PyTorch and a local browser; it
+does not require a separate Python installation or Qt. It does not include
+CUDA acceleration. Release assets are separate from this source working copy.
+
+Python installations on Linux (including Ubuntu) and Windows use the PyTorch
+build installed in that environment. For a CPU environment, install PyTorch
+first, then OptiProp:
+
+```bash
+python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+python -m pip install .
+```
+
+For Linux CUDA use, install a compatible CUDA-enabled PyTorch build using
+the [official PyTorch installation selector](https://pytorch.org/get-started/locally/),
+then install OptiProp in that environment. CUDA availability depends on the
+installed PyTorch build, GPU, and driver; the portable CPU build is not a
+CUDA package. Check your environment with:
+
+```bash
+python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available())"
+```
 
 ## Quick Start
 
@@ -182,7 +252,7 @@ explicit evanescent policy when numerical backpropagation is required.
 An `IncidentSource` creates the canonical input field; it is deliberately
 separate from the field-in/field-out layer list. Propagation, lens, aperture,
 complex-mask, and interface operations can then be composed into an immutable
-optical system. Every layer has a stable UUID suitable for a Qt list model,
+optical system. Every layer has a stable UUID suitable for a UI layer list,
 and every run retains its input plus per-layer output snapshots:
 
 ```python
@@ -503,15 +573,11 @@ See the `Example/` directory for more examples:
 - `Laser2Metalens_Collimator_MetaAtom` / `Laser2Metalens_Collimator_IdealPhase`:
   laser collimator from Zemax POP sources (requires POP `.txt` exports under
   `source/`, not distributed with the repository due to file size)
-- `Laser2Metalens_Collimator_IdealPhase.oprop`: ready-to-open GUI version of
-  the ideal-phase collimator. It imports the generated
-  `collimator_ideal_before_lens.mat`, applies the 16 um hyperbolic lens,
-  90 um aperture, glue-to-air interface, 0.2 um ASM propagation, and a
-  201-plane XZ scan. Launch it with:
-
-  ```bash
-  optiprop-gui Example/Laser2Metalens_Collimator_IdealPhase.oprop
-  ```
+- `Example/projects/`: canonical project JSON examples for the browser
+  workbench; these are also packaged under `optiprop/workbench/examples/`.
+- `Laser2Metalens_Collimator_IdealPhase.oprop`: historical Qt-form project,
+  not a v1.0.8 browser-workbench quick start. Preserve it for the old UI;
+  recreate the project or use the canonical `laser_collimator_demo.json`.
 
 ### Google Colab Examples
 
@@ -539,14 +605,21 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for det
 ```bash
 git clone https://github.com/Yu-Chen-Yi/optiprop.git
 cd optiprop
-pip install -e .[dev]
+python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+python -m pip install -e ".[dev]"
 ```
 
 ### Run tests
 
 ```bash
-python test_basic.py
+python -m pytest tests
 ```
+
+For headless runs set `MPLBACKEND=Agg` (`export MPLBACKEND=Agg` on Linux,
+`$env:MPLBACKEND = "Agg"` in PowerShell). CI covers Ubuntu and Windows with
+Python 3.10/3.12, CPU PyTorch, and only the `[dev]` extra. It checks installed
+entry points and browser assets, requires Qt packages to be absent, and
+forbids Qt imports throughout the tests, including `tests/workbench`.
 
 ## License
 
@@ -573,6 +646,21 @@ If you use this library in your research, please cite:
 - Docs: [Online documentation](https://optiprop.readthedocs.io/)
 
 ## Changelog
+
+### v1.0.8
+
+- Replace the legacy Qt workbench with a local browser UI and standard-library
+  loopback HTTP service; add `optiprop-workbench` and retain `optiprop-gui` as
+  a forwarding launcher.
+- Remove the PySide6 dependency, Qt implementation, and old widget tests;
+  keep an empty `[gui]` extra for installation compatibility.
+- Support the source/system-run, ideal/Binary2, Ex/Ey, XZ, and MAT/NPZ/ZBF
+  workflow; full optimization and database editing remain outside this UI release.
+- Package browser assets and four canonical JSON examples in wheels and sdists.
+- Prepare CPU-only Windows portable packaging and Qt-free Ubuntu/Windows
+  Python 3.10/3.12 CI. Linux Python installations may use CPU or CUDA PyTorch.
+- Keep old Qt-format `.oprop` files unchanged; recreate them or use canonical
+  examples instead of assuming automatic migration.
 
 ### v1.0.7
 

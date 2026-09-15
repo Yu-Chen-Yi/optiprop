@@ -5,9 +5,12 @@ include requirements.txt
 include pyproject.toml
 recursive-include data/metaatoms *.npy *.md
 recursive-include tests *.py
+recursive-include packaging/windows *.py *.ps1 *.spec *.md
 
 # Include all Python files
 recursive-include optiprop *.py
+recursive-include optiprop/workbench/static *
+recursive-include optiprop/workbench/examples *.json
 
 # Exclude development and build files
 prune Example

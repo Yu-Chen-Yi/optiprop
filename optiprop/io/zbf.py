@@ -258,22 +258,22 @@ def load_zbf(
 
 
 def write_zbf(
-    beam: ZbfBeam, path: str | os.PathLike[str], *, atomic: bool = True,
+    beam: ZbfBeam, path: str | os.PathLike[str], *, atomic: bool = True, length_unit: str = "m",
 ) -> None:
-    """Write an in-memory beam as ZBF v1 using metre units."""
+    """Write ZBF v1 with explicit file units (m or mm); in-memory values use SI."""
 
     if not isinstance(beam, ZbfBeam):
         raise TypeError("beam must be a ZbfBeam.")
     destination = _destination(path)
     if not np.isfinite(beam.ex).all() or (beam.ey is not None and not np.isfinite(beam.ey).all()):
         raise SchemaValidationError("Cannot export a ZBF field containing NaN/Inf.")
-    payload = _encode_v1(beam)
+    payload = _encode_v1(beam, length_unit=length_unit)
     _write_bytes(payload, destination, atomic=atomic)
 
 
 def save_zbf(
     field: Field2D, path: str | os.PathLike[str], *,
-    options: ExportOptions | None = None,
+    options: ExportOptions | None = None, length_unit: str = "m",
 ) -> ExportReport:
     """Export a scalar or Ex/Ey field as loss-aware ZBF v1."""
 
@@ -294,7 +294,7 @@ def save_zbf(
         wavelength_m=field.wavelength_m, medium_index=field.medium_index.real,
     )
     destination = _destination(path)
-    write_zbf(beam, destination, atomic=options.atomic)
+    write_zbf(beam, destination, atomic=options.atomic, length_unit=length_unit)
     warnings: list[ValidationIssue] = []
     if field.grid.x_center != 0 or field.grid.y_center != 0 or field.z_m != 0:
         warnings.append(ValidationIssue(
@@ -326,9 +326,12 @@ def _inspect_component(key: str, value: np.ndarray) -> ArrayInspection:
     )
 
 
-def _encode_v1(beam: ZbfBeam) -> bytes:
+def _encode_v1(beam: ZbfBeam, *, length_unit: str = "m") -> bytes:
+    if length_unit not in ("m", "mm"):
+        raise ValueError("ZBF output length_unit must be 'm' or 'mm'.")
+    unit_code = 0 if length_unit == "mm" else 3
     header = struct.pack(
-        "<9i", 1, beam.nx, beam.ny, int(beam.is_polarized), 3, 0, 0, 0, 0
+        "<9i", 1, beam.nx, beam.ny, int(beam.is_polarized), unit_code, 0, 0, 0, 0
     )
     pilot = beam.pilot
     values = [
@@ -336,6 +339,8 @@ def _encode_v1(beam: ZbfBeam) -> bytes:
         pilot.waist_x_m, pilot.position_y_m, pilot.rayleigh_y_m,
         pilot.waist_y_m, beam.wavelength_m, beam.medium_index,
     ] + [0.0] * 10
+    if length_unit == "mm":
+        values[:9] = [value * 1000 for value in values[:9]]
     chunks = [header, struct.pack("<20d", *values), _component_bytes(beam.ex)]
     if beam.ey is not None:
         chunks.append(_component_bytes(beam.ey))
