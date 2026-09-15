@@ -1,7 +1,7 @@
 import torch
-from .utils import *
+from ..utils import *
 import matplotlib.pyplot as plt
-from .elements import NearField
+from ..elements import NearField
 from rich.table import Table
 from rich.console import Console
 import numpy as np
@@ -71,10 +71,20 @@ class FresnelPropagation:
             dtype=self.dtype, 
             device=self.device
             )
-        self.output_U = torch.zeros((self.input_Nx, self.input_Ny), dtype=self.dtype, device=self.device)
-        self.output_X = self.propagation_wavelength * self.propagation_distance * torch.fft.fftfreq(self.input_Nx, device=self.device) / (self.input_pixel_size)
-        self.output_Y = self.propagation_wavelength * self.propagation_distance * torch.fft.fftfreq(self.input_Ny, device=self.device) / (self.input_pixel_size)
-        self.output_pixel_size = self.propagation_wavelength  * self.propagation_distance/ (self.input_pixel_size)
+        output_dtype = (
+            torch.complex64
+            if self.dtype == torch.float32
+            else torch.complex128
+        )
+        self.output_U = torch.zeros(
+            (self.input_Nx, self.input_Ny),
+            dtype=output_dtype,
+            device=self.device,
+        )
+        self._set_fresnel_output_grid(
+            self.propagation_distance,
+            self.propagation_wavelength,
+        )
 
     def set_output_field(
         self, 
@@ -88,8 +98,12 @@ class FresnelPropagation:
         """
         self.output_pixel_size = output_pixel_size
         # Calculate the u_in padding size
-        padding_size = int(self.propagation_wavelength * self.propagation_distance / self.input_pixel_size / self.output_pixel_size)
-        if padding_size > self.input_Nx:
+        padding_size = int(
+            abs(self.propagation_wavelength * self.propagation_distance)
+            / self.input_pixel_size
+            / self.output_pixel_size
+        )
+        if padding_size > max(self.input_Nx, self.input_Ny):
             self.input_U = pad_to_center(self.input_U, padding_size)
             # Transfer tensor to corresponding device
             self.input_Nx, self.input_Ny = padding_size, padding_size
@@ -99,8 +113,10 @@ class FresnelPropagation:
                 dtype=self.dtype, 
                 device=self.device
                 )
-        self.output_X = self.propagation_wavelength * self.propagation_distance * torch.fft.fftfreq(self.input_Nx, device=self.device) / (self.input_pixel_size)
-        self.output_Y = self.propagation_wavelength * self.propagation_distance * torch.fft.fftfreq(self.input_Ny, device=self.device) / (self.input_pixel_size)
+        self._set_fresnel_output_grid(
+            self.propagation_distance,
+            self.propagation_wavelength,
+        )
     
     def propagate(self):
         """Execute Fresnel propagation."""
@@ -108,28 +124,99 @@ class FresnelPropagation:
 
     def _fresnel(self):
         """
-        Fresnel propagation calculation.
+        Fresnel propagation calculation through the canonical backend.
         
         Returns:
             torch.Tensor: Output complex field
         """
-        z = torch.tensor(self.propagation_distance, dtype=self.dtype, device=self.device)
-        wvl = torch.tensor(self.propagation_wavelength, dtype=self.dtype, device=self.device)
-        k = self.k
-        self.output_X = wvl * z * torch.fft.fftfreq(self.input_Nx, device=self.device) / (self.input_pixel_size)
-        self.output_Y = wvl * z * torch.fft.fftfreq(self.input_Ny, device=self.device) / (self.input_pixel_size)
-        # Input phase (pre-phase)
-        in_phase = torch.exp(1j * k / (2*z) * (self.input_X**2 + self.input_Y**2))
-        U_in_mod = self.input_U * in_phase
+        from ..core import Field2D, Grid2D
+        from .base import PaddingSpec, PropagationMethod, PropagationSpec
+        from .fresnel import propagate_fresnel
 
-        # Spatial domain -> Frequency domain
-        U_in_freq = torch.fft.fft2(U_in_mod)
+        # The historical tensor is stored as [row, column] despite the legacy
+        # attributes being named input_Nx/input_Ny. Map it explicitly to the
+        # canonical [component, ny, nx] contract.
+        grid = Grid2D(
+            nx=self.input_U.shape[1],
+            ny=self.input_U.shape[0],
+            dx=self.input_pixel_size,
+            dy=self.input_pixel_size,
+        )
+        field = Field2D(
+            data=self.input_U.unsqueeze(0),
+            grid=grid,
+            # Legacy __init__ already divided the vacuum wavelength by n.
+            wavelength_m=self.propagation_wavelength,
+        )
+        result = propagate_fresnel(
+            field,
+            PropagationSpec(
+                method=PropagationMethod.FRESNEL_SCALED,
+                distance_m=self.propagation_distance,
+                padding=PaddingSpec.none(),
+            ),
+        )
+        self.output_X, self.output_Y = result.field.grid.meshgrid(
+            dtype=self.dtype,
+            device=self.device,
+        )
+        self.output_pixel_size_x = result.field.grid.dx
+        self.output_pixel_size_y = result.field.grid.dy
+        self.output_pixel_size = self.output_pixel_size_x
+        return result.field.data[0]
 
-        # Output phase and amplitude constant (post-phase)
-        out_phase = torch.exp(1j*k*z) / (1j*wvl*z) * torch.exp(1j*k/(2*z)*(self.output_X**2 + self.output_Y**2))
-        output_U = torch.fft.fftshift(U_in_freq)*out_phase*self.input_pixel_size**2
-        
-        return output_U
+    def _set_fresnel_output_grid(self, distance, wavelength):
+        """Create natural single-FFT Fresnel coordinates for [row, column]."""
+
+        distance = torch.as_tensor(
+            distance,
+            dtype=self.dtype,
+            device=self.device,
+        )
+        wavelength = torch.as_tensor(
+            wavelength,
+            dtype=self.dtype,
+            device=self.device,
+        )
+        if float(distance) == 0.0:
+            self.output_X = self.input_X
+            self.output_Y = self.input_Y
+            self.output_pixel_size_x = self.input_pixel_size
+            self.output_pixel_size_y = self.input_pixel_size
+            self.output_pixel_size = self.input_pixel_size
+            return
+        frequency_x = torch.fft.fftshift(
+            torch.fft.fftfreq(
+                self.input_Ny,
+                d=self.input_pixel_size,
+                dtype=self.dtype,
+                device=self.device,
+            )
+        )
+        frequency_y = torch.fft.fftshift(
+            torch.fft.fftfreq(
+                self.input_Nx,
+                d=self.input_pixel_size,
+                dtype=self.dtype,
+                device=self.device,
+            )
+        )
+        output_x = wavelength * distance * frequency_x
+        output_y = wavelength * distance * frequency_y
+        self.output_Y, self.output_X = torch.meshgrid(
+            output_y,
+            output_x,
+            indexing="ij",
+        )
+        self.output_pixel_size_x = abs(
+            float(wavelength * distance)
+        ) / (self.input_Ny * self.input_pixel_size)
+        self.output_pixel_size_y = abs(
+            float(wavelength * distance)
+        ) / (self.input_Nx * self.input_pixel_size)
+        # Preserve the historical scalar attribute. On rectangular fields it
+        # denotes the X/column spacing.
+        self.output_pixel_size = self.output_pixel_size_x
 
     def propagate_xz(
         self, 
@@ -149,44 +236,31 @@ class FresnelPropagation:
         self.z_range = z_range
         # Initialize output field array
         if self.dtype == torch.float32:
-            self.output_UZ = torch.zeros((z_num, self.input_Nx), 
+            self.output_UZ = torch.zeros((z_num, self.input_Ny), 
                                dtype=torch.complex64, device=self.device)
         else:
-            self.output_UZ = torch.zeros((z_num, self.input_Nx), 
+            self.output_UZ = torch.zeros((z_num, self.input_Ny), 
                                dtype=torch.complex128, device=self.device)
-        self.output_X = torch.zeros((z_num, self.input_Nx), 
+        output_x_scan = torch.zeros((z_num, self.input_Ny), 
                                dtype=self.dtype, device=self.device)
-        self.output_Z = torch.zeros((z_num, self.input_Nx), 
+        self.output_Z = torch.zeros((z_num, self.input_Ny), 
                                dtype=self.dtype, device=self.device)
         for i, z in enumerate(z_range):
             # Set current propagation distance
             self.propagation_distance = z
-            
-            # Calculate Fresnel propagation
-            z_tensor = torch.tensor(z)
-            wvl = torch.tensor(self.propagation_wavelength)
-            k = self.k
-            
-            # Calculate output coordinates (x direction only)
-            output_X = wvl * z_tensor * torch.fft.fftfreq(self.input_Nx, device=self.device) / (self.input_pixel_size)
-            
-            # Input phase (pre-phase)
-            in_phase = torch.exp(1j * k / (2*z_tensor) * (self.input_X**2 + self.input_Y**2))
-            U_in_mod = self.input_U * in_phase
-
-            # Spatial domain -> Frequency domain
-            U_in_freq = torch.fft.fft2(U_in_mod)
-
-            # Output phase and amplitude constant (post-phase)
-            out_phase = torch.exp(1j*k*z_tensor) / (1j*wvl*z_tensor) * torch.exp(1j*k/(2*z_tensor)*(output_X**2))
-            output_U = torch.fft.fftshift(U_in_freq) * out_phase * self.input_pixel_size**2
+            output_U = self._fresnel()
             
             # Take center line (y = 0)
-            center_idx = self.input_Ny // 2
+            center_idx = self.input_Nx // 2
             self.output_UZ[i, :] = output_U[center_idx, :]
-            self.output_X[i, :] = output_X
+            output_x_scan[i, :] = self.output_X[center_idx, :]
             # Repeat z_tensor to shape (1, Nx)
-            self.output_Z[i, :] = z_tensor.repeat(self.input_Nx)
+            self.output_Z[i, :] = torch.as_tensor(
+                z,
+                dtype=self.dtype,
+                device=self.device,
+            ).repeat(self.input_Ny)
+        self.output_X = output_x_scan
     
     def show_input_U(
         self, 

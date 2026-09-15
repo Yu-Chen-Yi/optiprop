@@ -25,7 +25,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 import optiprop
 
 REPO_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
-LIBRARY_PATH = os.path.join(REPO_ROOT, 'asia_1310.npy')
+LIBRARY_PATH = os.path.join(REPO_ROOT, 'data', 'metaatoms', 'asia_1310.npy')
 OUTPUT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # ----------------------------------------------------------------------------

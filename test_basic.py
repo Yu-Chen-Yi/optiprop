@@ -61,7 +61,7 @@ def test_metaatom_library():
         import torch
         import optiprop
 
-        library_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'asia_1310.npy')
+        library_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'metaatoms', 'asia_1310.npy')
         if not os.path.exists(library_path):
             print("[SKIP] asia_1310.npy not found, skipping meta-atom test")
             return True

@@ -3,6 +3,8 @@ include README.md
 include LICENSE
 include requirements.txt
 include pyproject.toml
+recursive-include data/metaatoms *.npy *.md
+recursive-include tests *.py
 
 # Include all Python files
 recursive-include optiprop *.py

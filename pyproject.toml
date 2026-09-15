@@ -1,13 +1,13 @@
 [build-system]
-requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "optiprop"
-version = "1.0.6"
+version = "1.0.7"
 description = "A Python library for optical field propagation simulation"
 readme = "README.md"
-license = {text = "MIT"}
+license = "MIT"
 authors = [
     {name = "Yu-Chen-Yi", email = "chenyi@g.ncu.edu.tw"}
 ]
@@ -29,18 +29,15 @@ keywords = [
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.7",
-    "Programming Language :: Python :: 3.8", 
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Physics",
     "Topic :: Scientific/Engineering :: Visualization",
 ]
-requires-python = ">=3.7"
+requires-python = ">=3.10"
 dependencies = [
     "torch>=1.9.0",
     "numpy>=1.20.0",
@@ -51,9 +48,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+gui = [
+    "PySide6>=6.5",
+]
 dev = [
-    "pytest>=6.0",
-    "pytest-cov>=2.0",
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
     "black>=21.0",
     "flake8>=3.8",
     "mypy>=0.800",
@@ -67,21 +67,27 @@ gpu = [
     "torch[cuda]>=1.9.0",
 ]
 
+[project.scripts]
+optiprop-gui = "optiprop.gui.app:main"
+optiprop-inspect = "optiprop.cli:inspect_main"
+optiprop-convert = "optiprop.cli:convert_main"
+
 [project.urls]
 Homepage = "https://github.com/Yu-Chen-Yi/optiprop"
 Documentation = "https://optiprop.readthedocs.io/"
 Repository = "https://github.com/Yu-Chen-Yi/optiprop.git"
 "Bug Tracker" = "https://github.com/Yu-Chen-Yi/optiprop/issues"
 
-[tool.setuptools]
-packages = ["optiprop"]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["optiprop*"]
 
 [tool.setuptools.package-data]
 optiprop = ["*.py"]
 
 [tool.black]
 line-length = 88
-target-version = ['py37', 'py38', 'py39', 'py310', 'py311']
+target-version = ['py310', 'py311', 'py312']
 include = '\.pyi?$'
 extend-exclude = '''
 /(
@@ -104,7 +110,7 @@ line_length = 88
 known_first_party = ["optiprop"]
 
 [tool.mypy]
-python_version = "3.7"
+python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false

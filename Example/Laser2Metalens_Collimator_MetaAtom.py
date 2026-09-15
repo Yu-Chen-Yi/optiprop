@@ -61,11 +61,11 @@ if _missing:
 # ----------------------------------------------------------------------------
 DESIGN_LAMBDA = 1.31e-6        # m (vacuum wavelength)
 N_GLUE = 1.5                   # refractive index of the glue
-GLUE_DISTANCE = 40e-6          # m, source -> metalens
+GLUE_DISTANCE = 120e-6#65e-6          # m, source -> metalens
 LENS_DIAMETER = 90e-6          # m
-PIXEL_SIZE = 325e-9            # m (= half of the 650 nm meta-atom period,
+PIXEL_SIZE = 650e-9            # m (= half of the 650 nm meta-atom period,
                                #    keeps ASM sampling below lambda/2 in glue)
-FIELD_L = 160e-6               # m simulation window
+FIELD_L = 665.6e-6               # m simulation window
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 near_field = optiprop.NearField(
@@ -159,7 +159,7 @@ print(f'joint design: relative piston delta = {best_delta:.4f} rad')
 # ----------------------------------------------------------------------------
 # 4. Realize with the meta-atom database and verify collimation
 # ----------------------------------------------------------------------------
-library = optiprop.MetaAtomLibrary(os.path.join(REPO_ROOT, 'asia_1310.npy'), device=DEVICE)
+library = optiprop.MetaAtomLibrary(os.path.join(REPO_ROOT, 'data', 'metaatoms', 'asia_1310.npy'), device=DEVICE)
 library.rich_print()
 
 meta_lens = optiprop.MetaAtomElement(near_field)
@@ -212,7 +212,7 @@ def beam_sigma(U, x):
 
 
 # Beam size vs z in air (padded window so the beam does not wrap)
-N_PAD = 985  # 985 * 325 nm = 320 um window
+N_PAD = 1024*2  # 985 * 325 nm = 320 um window
 x_pad = (np.arange(N_PAD) - (N_PAD - 1)/2) * PIXEL_SIZE
 z_list = np.linspace(0, 1000e-6, 11)
 sigmas = {}
@@ -262,7 +262,7 @@ sio.savemat(os.path.join(OUTPUT_DIR, 'collimator_before_lens.mat'), {
     'EX': U_x.cpu().numpy().astype(np.complex128),
     'EY': U_y.cpu().numpy().astype(np.complex128),
     'dx': PIXEL_SIZE, 'dy': PIXEL_SIZE,
-    'Nx': int(near_field.Nx), 'Ny': int(near_field.Ny),
+    'nx': int(near_field.Nx), 'ny': int(near_field.Ny), 'isPol': 1, 'lambda': DESIGN_LAMBDA*1e3,
 })
 print('Saved incident fields at the metalens plane to collimator_before_lens.mat '
       '(keys: EX, EY [complex double], dx, dy, Nx, Ny)')
@@ -283,7 +283,7 @@ print('Saved fields after collimator to collimator_output_fields.npz '
 # Propagate 0.2 um in air past the lens and save Ex/Ey as a .mat (complex double)
 PROP_AFTER_LENS = 0.2e-6
 mat_data = {'dx': PIXEL_SIZE, 'dy': PIXEL_SIZE,
-            'Nx': int(near_field.Nx), 'Ny': int(near_field.Ny)}
+            'nx': int(near_field.Nx), 'ny': int(near_field.Ny), 'isPol': 1, 'lambda': DESIGN_LAMBDA*1e3}
 for pol, U_after in [('EX', U_after_x), ('EY', U_after_y)]:
     p = optiprop.ASMPropagation(
         propagation_wavelength=DESIGN_LAMBDA,

@@ -4,10 +4,26 @@ __pycache__/
 *$py.class
 
 # Distribution / packaging
+tmp/
+output*/
+dist*/
+Example/*.mat
+Example/*.zbf
+Example/*.npz
+Example/collimator*.png
+Example/metalens*.png
+Example/metaatom_library.png
 build/
 dist/
 *.egg-info/
 *.egg
+
+# Tests / local runtime caches
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.optiprop-cache/
 
 # Editors / OS
 .vscode/
@@ -20,3 +36,11 @@ data_*.csv
 
 # Large source field files (>100MB, exceed GitHub limit)
 source/
+
+# Generated analysis outputs and machine-local UI preferences
+output/
+output2/
+output3/
+Example/.wavelength_analysis_ui.json
+fiber_coupling_sim/ui_runs/
+fiber_coupling_sim/tmp/pytest_*/

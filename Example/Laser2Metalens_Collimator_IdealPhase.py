@@ -57,9 +57,9 @@ if _missing:
 # ----------------------------------------------------------------------------
 DESIGN_LAMBDA = 1.31e-6        # m (vacuum wavelength)
 N_GLUE = 1.5                   # refractive index of the glue
-GLUE_DISTANCE = 40e-6          # m, source -> metalens
+GLUE_DISTANCE = 65e-6          # m, source -> metalens
 LENS_DIAMETER = 90e-6          # m
-FOCAL_LENGTH = 21e-6           # m, best hyperbolic focal length for Ey (scanned;
+FOCAL_LENGTH = 16e-6           # m, best hyperbolic focal length for Ey (scanned;
                                # cf. geometric guess 40/1.5 = 26.6 um)
 PIXEL_SIZE = 325e-9            # m (= half of the 650 nm meta-atom period)
 FIELD_L = 160e-6               # m simulation window
@@ -137,7 +137,7 @@ ideal_lens.calculate_phase(
 )
 ideal_lens.rich_print()
 
-library = optiprop.MetaAtomLibrary(os.path.join(REPO_ROOT, 'asia_1310.npy'), device=DEVICE)
+library = optiprop.MetaAtomLibrary(os.path.join(REPO_ROOT, 'data', 'metaatoms', 'asia_1310.npy'), device=DEVICE)
 library.rich_print()
 
 meta_lens = optiprop.MetaAtomElement(near_field)
@@ -184,7 +184,7 @@ def wavefront_rms(U):
 
 # Wavefront flatness after the lens for both polarizations
 for pol, U in [('Ex', U_x), ('Ey', U_y)]:
-    for lens_name, L in [('ideal f=21', ideal_lens.U0), ('metaatom', meta_lens.U0), ('no lens', aperture)]:
+    for lens_name, L in [('ideal f={FOCAL_LENGTH*1e6:.1f} µm', ideal_lens.U0), ('metaatom', meta_lens.U0), ('no lens', aperture)]:
         rms = wavefront_rms(U * L)
         print(f'wavefront RMS {pol} ({lens_name:12s}): {rms:.4f} rad = {rms/(2*np.pi):.4f} waves')
 
@@ -243,7 +243,7 @@ for ax, comp, lbl in [(axes[0], 0, '$\\sigma_x$'), (axes[1], 1, '$\\sigma_y$')]:
     ax.grid(alpha=0.3)
     ax.legend()
 axes[0].set_ylabel('beam size $\\sigma$ (µm)')
-fig.suptitle('Ideal-phase collimator f = 21 µm (asia_1310): Ex and Ey polarizations')
+fig.suptitle(f'Ideal-phase collimator f = {FOCAL_LENGTH*1e6:.1f} µm (asia_1310): Ex and Ey polarizations')
 fig.savefig(os.path.join(OUTPUT_DIR, 'collimator_ideal_sigma_vs_z.png'), dpi=300, bbox_inches='tight')
 plt.close(fig)
 
@@ -255,7 +255,7 @@ sio.savemat(os.path.join(OUTPUT_DIR, 'collimator_ideal_before_lens.mat'), {
     'EX': U_x.cpu().numpy().astype(np.complex128),
     'EY': U_y.cpu().numpy().astype(np.complex128),
     'dx': PIXEL_SIZE, 'dy': PIXEL_SIZE,
-    'Nx': int(near_field.Nx), 'Ny': int(near_field.Ny),
+    'nx': int(near_field.Nx), 'ny': int(near_field.Ny), 'isPol': 1, 'lambda': DESIGN_LAMBDA,
 })
 print('Saved incident fields at the metalens plane to collimator_ideal_before_lens.mat '
       '(keys: EX, EY [complex double], dx, dy, Nx, Ny)')
@@ -275,7 +275,7 @@ print('Saved fields after collimator to collimator_ideal_output_fields.npz '
 # Propagate 0.2 um in air past the lens and save Ex/Ey as a .mat (complex double)
 PROP_AFTER_LENS = 0.2e-6
 mat_data = {'dx': PIXEL_SIZE, 'dy': PIXEL_SIZE,
-            'Nx': int(near_field.Nx), 'Ny': int(near_field.Ny)}
+            'nx': int(near_field.Nx), 'ny': int(near_field.Ny), 'isPol': 1, 'lambda': DESIGN_LAMBDA}
 for pol, U_after in [('EX', U_after_x), ('EY', U_after_y)]:
     p = optiprop.ASMPropagation(
         propagation_wavelength=DESIGN_LAMBDA,
@@ -309,7 +309,7 @@ for ax, (pol, U_after) in zip(axes, [('Ey', U_after_y), ('Ex', U_after_x)]):
     )
     ax.set_ylabel('x (µm)')
     ax.set_ylim(-100, 100)
-    ax.set_title(f'XZ intensity after metalens ({pol}, ideal phase f = 21 µm)')
+    ax.set_title(f'XZ intensity after metalens ({pol}, ideal phase f = {FOCAL_LENGTH*1e6:.1f} µm)')
     fig.colorbar(im, ax=ax, label='Intensity')
 axes[-1].set_xlabel('z (µm)')
 fig.savefig(os.path.join(OUTPUT_DIR, 'collimator_ideal_xz_ExEy.png'), dpi=300, bbox_inches='tight')

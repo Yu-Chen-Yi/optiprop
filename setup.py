@@ -27,7 +27,7 @@ def read_requirements():
 
 setup(
     name="optiprop",
-    version="1.0.6",
+    version="1.0.7",
     author="Yu-Chen-Yi",
     author_email="chenyi@g.ncu.edu.tw",
     description="A Python library for optical field propagation simulation",
@@ -38,23 +38,23 @@ setup(
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Science/Research",
-        "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.7",
-        "Programming Language :: Python :: 3.8",
-        "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
         "Topic :: Scientific/Engineering :: Physics",
         "Topic :: Scientific/Engineering :: Visualization",
     ],
-    python_requires=">=3.7",
+    python_requires=">=3.10",
     install_requires=read_requirements(),
     extras_require={
+        "gui": [
+            "PySide6>=6.5",
+        ],
         "dev": [
-            "pytest>=6.0",
-            "pytest-cov>=2.0",
+            "pytest>=8.0",
+            "pytest-cov>=5.0",
             "black>=21.0",
             "flake8>=3.8",
             "mypy>=0.800",
@@ -86,5 +86,12 @@ setup(
         "Documentation": "https://optiprop.readthedocs.io/",
     },
     include_package_data=True,
+    entry_points={
+        "console_scripts": [
+            "optiprop-gui=optiprop.gui.app:main",
+            "optiprop-inspect=optiprop.cli:inspect_main",
+            "optiprop-convert=optiprop.cli:convert_main",
+        ]
+    },
     zip_safe=False,
 )
