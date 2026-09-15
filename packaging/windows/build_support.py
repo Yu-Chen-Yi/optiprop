@@ -49,6 +49,17 @@ def forbidden_module(name):
     return any(name == excluded or name.startswith(excluded + ".") for excluded in EXCLUDED_MODULES)
 
 
+def scipy_compat_hiddenimports(scipy_directory):
+    # Recent SciPy moved this vendored namespace from _lib to _external. Its numpy
+    # shim imports FFT/linalg via __import__(__package__ + ...), which static
+    # analysis misses; PyInstaller 6.20's upstream hook still names the old path.
+    package = Path(scipy_directory) / "_external/array_api_compat/numpy"
+    if package.is_dir():
+        return ["scipy._external.array_api_compat.numpy.fft",
+                "scipy._external.array_api_compat.numpy.linalg"]
+    return []
+
+
 def forbidden_payload(name):
     parts = PurePosixPath(str(name).replace("\\", "/")).parts
     for part in parts:

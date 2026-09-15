@@ -8,8 +8,11 @@ ROOT = SPEC_DIR.parent.parent
 sys.path.insert(0, str(SPEC_DIR))
 sys.path.insert(0, str(ROOT))
 
-from build_support import assert_build_environment, EXCLUDED_MODULES, forbidden_module, forbidden_payload
-from PyInstaller.utils.hooks import collect_data_files
+from build_support import (
+    assert_build_environment, EXCLUDED_MODULES, forbidden_module, forbidden_payload,
+    scipy_compat_hiddenimports,
+)
+from PyInstaller.utils.hooks import collect_data_files, get_package_paths
 
 assert_build_environment()
 stage = Path(os.environ["OPTIPROP_BUILD_METADATA"]).resolve()
@@ -32,7 +35,7 @@ a = Analysis(
     pathex=[str(ROOT)],
     binaries=[],
     datas=datas,
-    hiddenimports=["matplotlib.backends.backend_agg"],
+    hiddenimports=["matplotlib.backends.backend_agg"] + scipy_compat_hiddenimports(get_package_paths("scipy")[1]),
     hookspath=[],
     hooksconfig={"matplotlib": {"backends": ["Agg"]}},
     runtime_hooks=[str(SPEC_DIR / "runtime_hook.py")],

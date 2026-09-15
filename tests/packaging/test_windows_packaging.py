@@ -61,6 +61,14 @@ class PackagingTests(unittest.TestCase):
                      "python312.dll", "_internal/optiprop/workbench/static/app.js"]:
             self.assertFalse(support.forbidden_payload(name), name)
 
+    def test_scipy_relocated_dynamic_cpu_imports(self):
+        self.assertEqual(support.scipy_compat_hiddenimports(self.directory), [])
+        (self.directory / "_external/array_api_compat/numpy").mkdir(parents=True)
+        self.assertEqual(support.scipy_compat_hiddenimports(self.directory), [
+            "scipy._external.array_api_compat.numpy.fft",
+            "scipy._external.array_api_compat.numpy.linalg",
+        ])
+
     def test_reject_base_interpreter_before_importing_torch(self):
         with mock.patch.object(support.sys, "platform", "win32"), \
              mock.patch.object(support.platform, "machine", return_value="AMD64"), \
