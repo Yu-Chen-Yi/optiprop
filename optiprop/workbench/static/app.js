@@ -52,13 +52,13 @@
         if(i<0){
           if(node.kind!=='imported_field'){
             const label=document.createElement('label');label.className='gb-field';label.textContent='光源類型';const select=document.createElement('select');select.id='gb-source-kind';
-            ['gaussian','plane_wave','tilted_plane_wave'].forEach(kind=>{const option=document.createElement('option');option.value=kind;option.textContent=kind;select.appendChild(option);});select.value=node.kind;select.addEventListener('change',()=>change(()=>{node.kind=select.value;if(node.kind==='gaussian'){node.waist_x_m??=10e-6;node.waist_y_m??=10e-6;}}));label.appendChild(select);editor.appendChild(label);
+            ['gaussian','plane_wave','tilted_plane_wave'].forEach(kind=>{const option=document.createElement('option');option.value=kind;option.textContent=kind;select.appendChild(option);});select.value=node.kind;select.addEventListener('change',()=>change(()=>{node.kind=select.value;if(node.kind!=='tilted_plane_wave'){node.angle_x_rad=0;node.angle_y_rad=0;}if(node.kind==='gaussian'){node.waist_x_m??=10e-6;node.waist_y_m??=10e-6;}}));label.appendChild(select);editor.appendChild(label);
             field('真空波長 · nm','wavelength',node.wavelength_m*1e9,v=>node.wavelength_m=v*1e-9,{min:.001});field('來源折射率','source-n',real(node.medium_index),v=>node.medium_index=v,{min:.001});
             ['nx','ny'].forEach(key=>field(key.toUpperCase(),key,node.grid[key],v=>node.grid[key]=v,{min:2,max:4096,integer:true}));
             ['dx','dy'].forEach(key=>field(key+' · µm',key,um(node.grid[key]),v=>node.grid[key]=v*1e-6,{min:.001}));
             node.components.forEach((name,j)=>field(name+' 入射振幅（實數）','amp'+j,real(node.amplitudes[j]),v=>node.amplitudes[j]=v));
             if(node.kind==='gaussian'){['x','y'].forEach(axis=>field('束腰 w'+axis+' · µm','waist-'+axis,um(node['waist_'+axis+'_m']),v=>node['waist_'+axis+'_m']=v*1e-6,{min:.001}));}
-            if(node.kind==='tilted_plane_wave'){['x','y'].forEach(axis=>field('傾角 '+axis+' · rad','angle-'+axis,node['angle_'+axis+'_rad']||0,v=>node['angle_'+axis+'_rad']=v));}
+            if(node.kind==='tilted_plane_wave'||node.angle_x_rad||node.angle_y_rad){['x','y'].forEach(axis=>field('傾角 '+axis+' · rad','angle-'+axis,node['angle_'+axis+'_rad']||0,v=>node['angle_'+axis+'_rad']=v));}
           }
           const note=document.createElement('div');note.className='gb-muted';note.textContent=node.kind+' · '+(node.components||['scalar']).join(' / ')+' · '+(node.grid?node.grid.nx+' × '+node.grid.ny:'外部光場')+(node.kind==='imported_field'?'（取樣與波長依原始檔）':'');editor.appendChild(note);
         }
@@ -145,16 +145,16 @@
       }
       q('#gb-check').addEventListener('click',guarded(async()=>{q('#gb-check').disabled=true;try{const result=await api('/api/validate',runPayload());message((result.valid?'檢查通過':'設定有錯誤')+(result.issues.length?'：'+result.issues.map(i=>i.severity+' — '+i.message).join('；'):'。仍需依問題做取樣收斂驗證。'));}finally{controls();}}));
       q('#gb-run').addEventListener('click',guarded(async()=>{
-        const payload=runPayload(),key=documentKey();
-        try{busy='starting';controls();const start=await api('/api/run',payload);busy=start.id;controls();const job=await waitJob(busy);currentRun=job.id;runDocument=key;busy=null;controls();if(canObserve())await showView();if(job.issues?.length)message(job.issues.map(i=>i.message).join('；'));}finally{busy=null;controls();}
+        const payload=runPayload(),key=documentKey();let owner='starting-'+uid();
+        try{busy=owner;controls();const start=await api('/api/run',payload);owner=start.id;busy=owner;controls();const job=await waitJob(owner);currentRun=job.id;runDocument=key;if(busy===owner)busy=null;controls();if(canObserve())await showView();if(currentRun===job.id&&job.issues?.length)message(job.issues.map(i=>i.message).join('；'));}finally{if(busy===owner)busy=null;controls();}
       }));
-      q('#gb-cancel').addEventListener('click',guarded(async()=>{if(busy&&busy!=='starting')await api('/api/cancel',{job:busy});}));
+      q('#gb-cancel').addEventListener('click',guarded(async()=>{if(busy&&!busy.startsWith('starting'))await api('/api/cancel',{job:busy});}));
       q('#gb-view').addEventListener('click',guarded(showView));
       q('#gb-export').addEventListener('click',guarded(async()=>{const result=await api('/api/export',{...observation(),format:q('#gb-format').value});message('已儲存：'+result.path);}));
       q('#gb-xz').addEventListener('click',guarded(async()=>{
         if(!q('#gb-xz-distance').reportValidity()||!q('#gb-xz-count').reportValidity())return;
         const payload={...observation(),distance_m:Number(q('#gb-xz-distance').value)*1e-6,count:Number(q('#gb-xz-count').value)};
-        try{busy='starting';controls();const start=await api('/api/xz',payload);busy=start.id;controls();await waitJob(busy);const result=await api('/api/xz-image',{job:busy});q('#gb-xz-result').src='data:image/png;base64,'+result.png;q('#gb-xz-result').hidden=false;}finally{busy=null;controls();}
+        let owner='starting-'+uid();try{busy=owner;controls();const start=await api('/api/xz',payload);owner=start.id;busy=owner;controls();await waitJob(owner);const result=await api('/api/xz-image',{job:owner});q('#gb-xz-result').src='data:image/png;base64,'+result.png;q('#gb-xz-result').hidden=false;}finally{if(busy===owner)busy=null;controls();}
       }));
       q('#gb-save').addEventListener('click',()=>{const blob=new Blob([JSON.stringify(project,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='optiprop-project.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
       q('#gb-device').addEventListener('change',()=>change(()=>project.compute_settings.device=q('#gb-device').value));

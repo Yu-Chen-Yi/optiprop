@@ -5,7 +5,7 @@ import http.client
 import json
 from pathlib import Path
 import struct
-from threading import Thread
+from threading import Event, Thread
 import time
 
 import numpy as np
@@ -142,6 +142,37 @@ def test_zbf_refuses_non_power_of_two(run):
     assert wait(service, job)["status"] == "completed"
     with pytest.raises(ValueError, match="powers of two"):
         service.export({"job": job, "layer_id": doc["source"]["id"], "format": "zbf"})
+
+
+@pytest.mark.parametrize("cancel", [False, True])
+def test_last_good_run_survives_xz_then_failed_or_cancelled_replacement(run, monkeypatch, cancel):
+    service, doc, selection = run
+    for _ in range(2):
+        scan = service.start({**selection, "count": 3, "distance_m": 10e-6}, "xz")["id"]
+        assert wait(service, scan)["status"] == "completed"
+    entered, release = Event(), Event()
+    import optiprop.workbench.service as module
+    real_builder = module.build_project
+    def delayed(*args):
+        entered.set()
+        assert release.wait(10)
+        return real_builder(*args)
+    monkeypatch.setattr(module, "build_project", delayed)
+    replacement = deepcopy(doc)
+    if not cancel:
+        replacement["optical_system"]["layers"][0]["coefficients"] = []
+    identifier = service.start({"project": replacement})["id"]
+    try:
+        assert entered.wait(10)
+        with pytest.raises(ValueError, match="task is running"):
+            service.start({"project": doc})
+        if cancel:
+            service.cancel(identifier)
+    finally:
+        release.set()
+    assert wait(service, identifier)["status"] == ("cancelled" if cancel else "failed")
+    assert service.last_good_run == selection["job"]
+    assert Path(service.export({**selection, "format": "npz"})["path"]).is_file()
 
 
 def test_loopback_auth_host_origin_and_no_arbitrary_file_serving(tmp_path):

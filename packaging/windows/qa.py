@@ -111,6 +111,34 @@ def validate_self_test(output):
             "run_status": run["status"], "layers": [layer["type"] for layer in layers]}
 
 
+def validate_asset_response(path, body, headers, expected_mime):
+    """Check content and browser-facing headers on every frozen frontend asset."""
+    if not body.strip():
+        raise RuntimeError(f"Frozen HTTP asset is empty: {path}")
+    content_type = headers.get("Content-Type", "")
+    if content_type.split(";", 1)[0].strip().lower() != expected_mime:
+        raise RuntimeError(f"Frozen HTTP asset has incorrect MIME type: {path} ({content_type})")
+    csp = headers.get("Content-Security-Policy", "")
+    directives = {}
+    for directive in csp.split(";"):
+        parts = directive.split()
+        if parts:
+            if parts[0] in directives:
+                raise RuntimeError(f"Frozen HTTP asset has duplicate CSP directives: {path}")
+            directives[parts[0]] = set(parts[1:])
+    required = {"default-src": {"'none'"}, "script-src": {"'self'"},
+                "frame-ancestors": {"'none'"}, "base-uri": {"'none'"}}
+    style_sources = directives.get("style-src", set())
+    if (any(directives.get(key) != values for key, values in required.items())
+            or "'self'" not in style_sources
+            or not style_sources.issubset({"'self'", "'unsafe-inline'"})):
+        raise RuntimeError(f"Frozen HTTP asset has missing or unexpected CSP: {path}")
+    if headers.get("X-Content-Type-Options", "").lower().strip() != "nosniff":
+        raise RuntimeError(f"Frozen HTTP asset is missing nosniff: {path}")
+    return {"bytes": len(body), "content_type": content_type, "content_security_policy": csp,
+            "x_content_type_options": "nosniff"}
+
+
 def probe_http(entry, scratch, timeout):
     """Launch the exact frozen server, fetch assets/bootstrap, then request clean shutdown."""
     session_file = scratch / "http-session.json"
@@ -119,15 +147,19 @@ def probe_http(entry, scratch, timeout):
                "--session-file", str(session_file)]
     session = None
     opener = build_opener(ProxyHandler({}))  # Loopback must not pass through host proxy settings.
+    assets = {}
 
-    def request(path, data=None, authenticated=True):
+    def request(path, data=None, authenticated=True, asset_mime=None):
         headers = {"Origin": session["origin"]}
         if authenticated:
             headers["X-OptiProp-Token"] = session["token"]
         if data is not None:
             headers["Content-Type"] = "application/json"
         with opener.open(Request(session["origin"] + path, data=data, headers=headers), timeout=10) as response:
-            return response.read()
+            body = response.read()
+            if asset_mime is not None:
+                assets[path] = validate_asset_response(path, body, response.headers, asset_mime)
+            return body
 
     with (scratch / "http-process.log").open("wb") as log:
         process = subprocess.Popen(command, cwd=scratch / "empty working directory", env=environment,
@@ -153,9 +185,10 @@ def probe_http(entry, scratch, timeout):
                 time.sleep(.1)
             if session is None:
                 raise RuntimeError("Timed out waiting for frozen HTTP session file")
-            html = request("/", authenticated=False)
-            javascript = request("/app.js", authenticated=False)
-            if b"<html" not in html.lower() or not javascript:
+            html = request("/", authenticated=False, asset_mime="text/html")
+            css = request("/app.css", authenticated=False, asset_mime="text/css")
+            javascript = request("/app.js", authenticated=False, asset_mime="text/javascript")
+            if b"<html" not in html.lower():
                 raise RuntimeError("Frozen HTTP static UI is missing or empty")
             bootstrap = json.loads(request("/api/bootstrap"))
             expected = {"free_propagation", "metalens_focus_ideal", "metalens_focus_binary2", "laser_collimator_demo"}
@@ -169,7 +202,8 @@ def probe_http(entry, scratch, timeout):
             else:
                 raise RuntimeError("Frozen API accepted a missing session token")
             report = {"passed": True, "origin": session["origin"], "version": bootstrap.get("version"),
-                      "html_bytes": len(html), "javascript_bytes": len(javascript),
+                      "html_bytes": len(html), "css_bytes": len(css), "javascript_bytes": len(javascript),
+                      "assets": assets,
                       "examples": sorted(bootstrap["examples"]), "missing_token_status": 403}
             request("/api/shutdown", data=b"{}")
             process.wait(timeout=30)

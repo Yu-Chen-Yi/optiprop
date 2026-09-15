@@ -176,6 +176,7 @@ class WorkbenchService:
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="optiprop")
         self.jobs = {}
         self.active = None
+        self.last_good_run = None
 
     def validate(self, document, asset_root):
         _, system, field = build_project(document, asset_root)
@@ -192,10 +193,13 @@ class WorkbenchService:
             self.jobs[identifier] = {"id": identifier, "kind": kind, "status": "queued", "message": "Queued",
                                      "token": CancellationToken(), "payload": payload}
             self.active = identifier
-            # Keep at most two previous runs in RAM; on-disk output is not deleted.
-            old = [key for key in self.jobs if key != identifier and key != payload.get("job")]
-            for key in old[:-2]:
-                del self.jobs[key]
+            # XZ jobs must never displace the last successful optical field.
+            # Keep it until a replacement succeeds, even if replacement fails/cancels.
+            protected = {identifier, payload.get("job"), self.last_good_run}
+            old = [key for key in self.jobs if key not in protected]
+            for key in old:
+                if self.jobs[key]["kind"] == "run" or key not in old[-2:]:
+                    del self.jobs[key]
             self.executor.submit(self._execute, identifier)
             return {"id": identifier}
 
@@ -266,6 +270,8 @@ class WorkbenchService:
             token.throw_if_cancelled()
             with self.lock:
                 job.update(status="completed", message="Complete")
+                if job["kind"] == "run":
+                    self.last_good_run = identifier
         except Exception as exc:
             from ..propagation import PropagationCancelled
             with self.lock:

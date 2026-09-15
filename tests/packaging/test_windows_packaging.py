@@ -200,6 +200,96 @@ class PackagingTests(unittest.TestCase):
         (self.directory / "pyproject.toml").write_text('[project]\nname = "optiprop"\nversion = "1.0.8"\n')
         self.assertEqual(support.read_version(self.directory), "1.0.8")
 
+    def asset_headers(self, mime="text/css"):
+        headers = Message()
+        headers["Content-Type"] = mime + "; charset=utf-8"
+        headers["Content-Security-Policy"] = (
+            "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'; "
+            "base-uri 'none'; form-action 'none'")
+        headers["X-Content-Type-Options"] = "nosniff"
+        return headers
+
+    def test_asset_response_requires_nonempty_content_and_correct_mime(self):
+        valid = qa.validate_asset_response("/app.css", b"body { color: red; }", self.asset_headers(), "text/css")
+        self.assertGreater(valid["bytes"], 0)
+        self.assertEqual(valid["content_type"], "text/css; charset=utf-8")
+        with self.assertRaisesRegex(RuntimeError, "empty: /app.css"):
+            qa.validate_asset_response("/app.css", b" \r\n\t", self.asset_headers(), "text/css")
+        with self.assertRaisesRegex(RuntimeError, "incorrect MIME type: /app.css"):
+            qa.validate_asset_response("/app.css", b"<html>Error</html>", self.asset_headers("text/html"), "text/css")
+
+    def test_asset_response_requires_csp_and_nosniff(self):
+        for omitted, message in [("Content-Security-Policy", "CSP"), ("X-Content-Type-Options", "nosniff")]:
+            with self.subTest(omitted=omitted):
+                headers = self.asset_headers()
+                del headers[omitted]
+                with self.assertRaisesRegex(RuntimeError, message):
+                    qa.validate_asset_response("/app.css", b"body {}", headers, "text/css")
+
+    def test_asset_response_rejects_unexpected_or_duplicate_csp(self):
+        for old, new in [("style-src 'self'", "style-src *"),
+                         ("script-src 'self'", "script-src 'self' 'unsafe-inline'"),
+                         ("default-src 'none'", "default-src 'none'; default-src *")]:
+            with self.subTest(new=new):
+                headers = self.asset_headers()
+                headers.replace_header("Content-Security-Policy", headers["Content-Security-Policy"].replace(old, new))
+                with self.assertRaisesRegex(RuntimeError, "CSP"):
+                    qa.validate_asset_response("/app.css", b"body {}", headers, "text/css")
+
+    def test_http_probe_fetches_css_and_reports_asset_headers_without_spawning(self):
+        session = {"origin": "http://127.0.0.1:12345", "url": "http://127.0.0.1:12345/#test-token",
+                   "token": "test-token"}
+        support.write_json(self.directory / "http-session.json", session)
+        requests = []
+        process = mock.Mock(returncode=None)
+        process.poll.side_effect = lambda: process.returncode
+
+        def wait(timeout):
+            process.returncode = 0
+            return 0
+
+        process.wait.side_effect = wait
+        opener = mock.Mock()
+
+        def open_response(request, timeout):
+            path = qa.urlsplit(request.full_url).path
+            requests.append((path, request.get_method()))
+            static = {"/": (b"<html></html>", "text/html"),
+                      "/app.css": (b"body { color: red; }", "text/css"),
+                      "/app.js": (b"console.log('test');", "text/javascript")}
+            if path in static:
+                body, mime = static[path]
+            elif path == "/api/bootstrap":
+                if request.get_header("X-optiprop-token") != session["token"]:
+                    raise qa.HTTPError(request.full_url, 403, "Forbidden", None, None)
+                body = json.dumps({"version": "1.0.8", "examples": dict.fromkeys([
+                    "free_propagation", "metalens_focus_ideal", "metalens_focus_binary2", "laser_collimator_demo"
+                ], {})}).encode()
+                mime = "application/json"
+            elif path == "/api/shutdown":
+                body, mime = b'{"stopping": true}', "application/json"
+            else:
+                self.fail(f"Unexpected HTTP probe path: {path}")
+            response = mock.MagicMock()
+            response.__enter__.return_value = response
+            response.read.return_value = body
+            response.headers = self.asset_headers(mime)
+            return response
+
+        opener.open.side_effect = open_response
+        with mock.patch.object(qa.subprocess, "Popen", return_value=process) as popen, \
+             mock.patch.object(qa, "build_opener", return_value=opener):
+            report = qa.probe_http(self.directory / "OptiProp.exe", self.directory, 30)
+        popen.assert_called_once()
+        self.assertEqual(set(report["assets"]), {"/", "/app.css", "/app.js"})
+        self.assertEqual(report["assets"]["/app.css"]["content_type"], "text/css; charset=utf-8")
+        self.assertGreater(report["css_bytes"], 0)
+        self.assertEqual(report["shutdown_returncode"], 0)
+        self.assertIn(("/app.css", "GET"), requests)
+        self.assertIn(("/api/shutdown", "POST"), requests)
+        self.assertNotIn(session["token"], json.dumps(report))
+
     def test_all_packaging_python_and_spec_parse(self):
         for path in [*TOOLING.glob("*.py"), *TOOLING.glob("*.spec")]:
             ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
